@@ -5,7 +5,6 @@ let maestros = [];
 let listaGuardias = [];
 let maestroPatentes = [];
 
-// Formateos originales
 export const formatearRUT = (rut) => {
     let v = rut.replace(/[^\dkK]/g, "");
     if (v.length > 1) v = v.slice(0, -1) + "-" + v.slice(-1);
@@ -14,11 +13,10 @@ export const formatearRUT = (rut) => {
 
 export const formatearPatente = (val) => {
     let v = val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-    if (v.length > 4) v = v.slice(0, -2) + "-" + v.slice(-2);
+    if (v.length > 4) v = v.slice(0, -1) + "-" + v.slice(-1); // Corregido según tu lógica original
     return v.substring(0, 7);
 };
 
-// Autocompletados y Snapshots
 onSnapshot(collection(db, "conductores"), (snap) => { maestros = snap.docs.map(d => d.data()); });
 onSnapshot(collection(db, "vehiculos"), (snap) => { maestroPatentes = snap.docs.map(d => d.data()); });
 
@@ -55,8 +53,8 @@ export function activarAutocompletadoPatente(idInput, idBox) {
         const box = document.getElementById(idBox);
         box.innerHTML = "";
         if (val.length < 2) return;
-        const bLimpia = val.replace(/-/g, "").forEach(item => { /*...*/ }); // (Lógica mantenida)
-        maestroPatentes.filter(p => p.patente.replace(/-/g, "").startsWith(val.replace(/-/g, ""))).forEach(item => {
+        const bLimpia = val.replace(/-/g, "");
+        maestroPatentes.filter(p => p.patente.replace(/-/g, "").startsWith(bLimpia)).forEach(item => {
             const d = document.createElement('div'); d.className="sugerencia-item"; d.textContent=item.patente;
             d.onclick = () => { input.value = item.patente; box.innerHTML=""; };
             box.appendChild(d);
@@ -64,8 +62,7 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// Registro y Gestión de Guardias
-export const cargarListadosYGuardias = () => {
+export const cargarGuardiasYListados = () => {
     onSnapshot(collection(db, "lista_guardias"), (s) => {
         listaGuardias = s.docs.map(d => ({id: d.id, ...d.data()}));
         ['t-guardia-id', 'v-guardia-id'].forEach(id => {
@@ -85,14 +82,39 @@ export const cargarListadosYGuardias = () => {
     });
 };
 
-// Hacer borrarG global para el HTML
 window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
 
 export const guardarRegistro = async (data) => {
     const ahora = new Date();
     data.fecha = ahora.toLocaleDateString('es-CL');
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
-    data.fechaFiltro = ahora.toISOString().split('T')[0];
+    const anio = ahora.getFullYear(), mes = String(ahora.getMonth() + 1).padStart(2, '0'), dia = String(ahora.getDate()).padStart(2, '0');
+    data.fechaFiltro = `${anio}-${mes}-${dia}`;
     await addDoc(collection(db, "ingresos"), data);
     alert("Registro guardado con éxito");
+};
+
+export const aprenderPatente = async (pat) => {
+    if (pat && pat.length >= 6 && !maestroPatentes.some(p => p.patente === pat)) {
+        await addDoc(collection(db, "vehiculos"), { patente: pat });
+    }
+};
+
+export const exportarExcel = async (inicio, fin, tipoF) => {
+    const snap = await getDocs(collection(db, "ingresos"));
+    let filtrados = snap.docs.map(d => d.data()).filter(r => {
+        const cF = r.fechaFiltro >= inicio && r.fechaFiltro <= fin;
+        const cT = (tipoF === "TODOS") || (r.tipo === tipoF);
+        return cF && cT;
+    });
+    if(filtrados.length === 0) return alert("Sin datos para este rango.");
+    filtrados.sort((a, b) => (a.fechaFiltro + a.hora).localeCompare(b.fechaFiltro + b.hora));
+    const datosOrdenados = filtrados.map(r => {
+        const fila = { "Fecha": r.fecha, "Hora": r.hora, "Tipo": r.tipo, "Guardia": r.guardia || "No especificado", "Rut": r.rut, "Nombre": r.nombre, "Empresa": r.empresa, "Patente": r.patente };
+        if (r.motivo) fila["Motivo"] = r.motivo;
+        return fila;
+    });
+    const ws = XLSX.utils.json_to_sheet(datosOrdenados), wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+    XLSX.writeFile(wb, `Reporte_Prosud_${tipoF}.xlsx`);
 };
