@@ -1,85 +1,77 @@
-import { db, observarSesion, iniciarSesion, cerrarSesion, configurarPermisosSeguros } from './jslg.js';
-import { activarAutocompletadoRUT, activarAutocompletadoPatente, cargarGuardiasYListados, exportarExcel, formatearRUT } from './jsmtr.js';
-import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// IMPORTANTE: Importamos los inicializadores de las otras ventanas
-import { inicializarTransporte } from './jstte.js';
-import { inicializarVisitas } from './jsvst.js';
-
-// --- CONTROL DE SESIÓN ---
-observarSesion(async (user) => {
-    if (user) {
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('app-body').style.display = 'block';
-        
-        // Cargar permisos y datos maestros
-        await configurarPermisosSeguros(user.email);
-        cargarGuardiasYListados();
-        
-        // Activamos la lógica de los formularios (Transporte y Visitas)
-        inicializarTransporte();
-        inicializarVisitas();
-    } else {
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('app-body').style.display = 'none';
-    }
+// Forzamos que el DOM esté listo antes de actuar
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("JSAPP cargado y listo"); // Esto debe salir en la consola
+    inicializarApp();
 });
 
-// --- LOGIN Y LOGOUT ---
-document.getElementById('btn-login').onclick = () => {
-    const email = document.getElementById('login-email').value;
-    const pass = document.getElementById('login-password').value;
-    iniciarSesion(email, pass).catch(() => alert("Error de acceso"));
-};
+async function inicializarApp() {
+    // Importaciones dinámicas para evitar bloqueos al inicio
+    const { observarSesion, configurarPermisosSeguros, iniciarSesion, cerrarSesion } = await import('./jslg.js');
+    const { activarAutocompletadoRUT, activarAutocompletadoPatente, cargarGuardiasYListados, exportarExcel, formatearRUT } = await import('./jsmtr.js');
+    const { db } = await import('./jslg.js');
+    const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+    const { inicializarTransporte } = await import('./jstte.js');
+    const { inicializarVisitas } = await import('./jsvst.js');
 
-document.getElementById('btn-logout').onclick = () => {
-    cerrarSesion();
-};
+    // --- SESIÓN ---
+    observarSesion(async (user) => {
+        if (user) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-body').style.display = 'block';
+            await configurarPermisosSeguros(user.email);
+            cargarGuardiasYListados();
+            inicializarTransporte();
+            inicializarVisitas();
+        } else {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-body').style.display = 'none';
+        }
+    });
 
-// --- AUTOCOMPLETADOS (Transversales) ---
-activarAutocompletadoRUT('t-rut', 't-sugerencias');
-activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
-activarAutocompletadoPatente('t-patente', 'p-sugerencias');
-activarAutocompletadoPatente('v-patente', 'v-sugerencias-patente');
+    // --- ACCIONES DE BOTONES (Asignación directa) ---
+    
+    // Login / Logout
+    document.getElementById('btn-login').onclick = () => {
+        const email = document.getElementById('login-email').value;
+        const pass = document.getElementById('login-password').value;
+        iniciarSesion(email, pass).catch(err => alert("Error: " + err.message));
+    };
 
-// --- NAVEGACIÓN ENTRE PESTAÑAS (UI) ---
-document.getElementById('btn-tab-transporte').onclick = () => {
-    document.getElementById('sec-transporte').style.display = 'block';
-    document.getElementById('sec-visitas').style.display = 'none';
-    document.getElementById('btn-tab-transporte').classList.add('active');
-    document.getElementById('btn-tab-visitas').classList.remove('active');
-};
+    document.getElementById('btn-logout').onclick = () => cerrarSesion();
 
-document.getElementById('btn-tab-visitas').onclick = () => {
-    document.getElementById('sec-visitas').style.display = 'block';
-    document.getElementById('sec-transporte').style.display = 'none';
-    document.getElementById('btn-tab-visitas').classList.add('active');
-    document.getElementById('btn-tab-transporte').classList.remove('active');
-};
+    // Modales (Abrir/Cerrar)
+    const asignarModal = (btnId, modalId, display) => {
+        const btn = document.getElementById(btnId);
+        if(btn) btn.onclick = () => document.getElementById(modalId).style.display = display;
+    };
 
-// --- MODALES DE ADMINISTRACIÓN ---
-// Gestionar Guardias
-document.getElementById('btn-gestionar-guardias').onclick = () => {
-    document.getElementById('modal-gestion-guardias').style.display = 'flex';
-};
-document.getElementById('btn-cerrar-gestion').onclick = () => {
-    document.getElementById('modal-gestion-guardias').style.display = 'none';
-};
+    asignarModal('btn-gestionar-guardias', 'modal-gestion-guardias', 'flex');
+    asignarModal('btn-cerrar-gestion', 'modal-gestion-guardias', 'none');
+    asignarModal('btn-abrir-reportes', 'modal-reportes', 'flex');
+    asignarModal('btn-cerrar-reportes', 'modal-reportes', 'none');
+    asignarModal('btn-abrir-modal', 'modal-conductor', 'flex');
+    asignarModal('btn-cerrar-modal', 'modal-conductor', 'none');
 
-// Reportes
-document.getElementById('btn-abrir-reportes').onclick = () => {
-    document.getElementById('modal-reportes').style.display = 'flex';
-};
-document.getElementById('btn-cerrar-reportes').onclick = () => {
-    document.getElementById('modal-reportes').style.display = 'none';
-};
+    // Reportes
+    document.getElementById('btn-exportar').onclick = () => {
+        const inicio = document.getElementById('fecha-inicio').value;
+        const fin = document.getElementById('fecha-fin').value;
+        const tipoF = document.getElementById('filtro-tipo').value;
+        if(!inicio || !fin) return alert("Seleccione fechas");
+        exportarExcel(inicio, fin, tipoF);
+    };
 
-// Maestro Conductor
-document.getElementById('btn-abrir-modal').onclick = () => {
-    document.getElementById('modal-conductor').style.display = 'flex';
-};
-document.getElementById('btn-cerrar-modal').onclick = () => {
-    document.getElementById('modal-conductor').style.display = 'none';
-};
+    // Navegación
+    document.getElementById('btn-tab-transporte').onclick = () => {
+        document.getElementById('sec-transporte').style.display = 'block';
+        document.getElementById('sec-visitas').style.display = 'none';
+    };
+    document.getElementById('btn-tab-visitas').onclick = () => {
+        document.getElementById('sec-visitas').style.display = 'block';
+        document.getElementById('sec-transporte').style.display = 'none';
+    };
 
-// --- LÓGICA
+    // Autocompletados
+    activarAutocompletadoRUT('t-rut', 't-sugerencias');
+    activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
+}
