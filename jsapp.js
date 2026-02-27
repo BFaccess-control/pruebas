@@ -35,3 +35,43 @@ document.getElementById('btn-tab-visitas').onclick = () => {
     document.getElementById('sec-visitas').style.display='block';
     document.getElementById('sec-transporte').style.display='none';
 };
+import { exportarExcel } from './jsmtr.js';
+
+// --- BOTÓN REPORTES EXCEL ---
+document.getElementById('btn-exportar').onclick = () => {
+    const inicio = document.getElementById('fecha-inicio').value;
+    const fin = document.getElementById('fecha-fin').value;
+    const tipoF = document.getElementById('filtro-tipo').value;
+    if(!inicio || !fin) return alert("Por favor, seleccione un rango de fechas.");
+    exportarExcel(inicio, fin, tipoF);
+};
+
+// --- BOTÓN GESTIONAR GUARDIAS Y OTROS MODALES ---
+// Estos botones solo abren y cierran ventanas (UI), deben estar en jsapp.js
+document.getElementById('btn-gestionar-guardias').onclick = () => {
+    document.getElementById('modal-gestion-guardias').style.display = 'flex';
+};
+
+document.getElementById('btn-cerrar-gestion').onclick = () => {
+    document.getElementById('modal-gestion-guardias').style.display = 'none';
+};
+
+document.getElementById('btn-abrir-reportes').onclick = () => {
+    document.getElementById('modal-reportes').style.display = 'flex';
+};
+
+document.getElementById('btn-cerrar-reportes').onclick = () => {
+    document.getElementById('modal-reportes').style.display = 'none';
+};
+
+// Botón para agregar guardia nuevo
+document.getElementById('btn-add-guardia').onclick = async () => {
+    const n = document.getElementById('nuevo-guardia-nombre');
+    if(n.value) {
+        // Importamos db de jslg para poder guardar
+        import { db } from './jslg.js';
+        import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        await addDoc(collection(db, "lista_guardias"), { nombre: n.value });
+        n.value = "";
+    }
+};
