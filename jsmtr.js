@@ -71,17 +71,18 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// CORRECCIÓN AQUÍ: Aseguramos que el llenado ocurra dentro del Snapshot
-export const cargarGuardiasYListados = () => {
-    onSnapshot(collection(db, "lista_guardias"), (s) => {
-        listaGuardias = s.docs.map(d => ({id: d.id, ...d.data()}));
-        
+// FUNCIÓN DE CARGA MEJORADA
+export const cargarGuardiasYListados = async () => {
+    const colRef = collection(db, "lista_guardias");
+
+    // Función interna para renderizar en los selects
+    const renderizar = (docs) => {
+        listaGuardias = docs.map(d => ({id: d.id, ...d.data()}));
         let opciones = '<option value="">-- Seleccione Guardia --</option>';
         listaGuardias.forEach(g => {
             opciones += `<option value="${g.nombre}">${g.nombre}</option>`;
         });
 
-        // Llenamos los tres selects con la lista real de Firebase
         const selects = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'];
         selects.forEach(id => {
             const el = document.getElementById(id);
@@ -98,6 +99,15 @@ export const cargarGuardiasYListados = () => {
                 </div>`;
             });
         }
+    };
+
+    // 1. Carga inicial inmediata
+    const inicialSnap = await getDocs(colRef);
+    renderizar(inicialSnap.docs);
+
+    // 2. Suscripción para cambios en tiempo real
+    onSnapshot(colRef, (s) => {
+        renderizar(s.docs);
     });
 };
 
