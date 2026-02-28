@@ -61,17 +61,34 @@ async function inicializarApp() {
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // Navegación
-    document.getElementById('btn-tab-transporte').onclick = () => {
-        document.getElementById('sec-transporte').style.display = 'block';
-        document.getElementById('sec-visitas').style.display = 'none';
-    };
-    document.getElementById('btn-tab-visitas').onclick = () => {
-        document.getElementById('sec-visitas').style.display = 'block';
-        document.getElementById('sec-transporte').style.display = 'none';
-    };
+   // --- NAVEGACIÓN ENTRE PESTAÑAS (Con cambio de color) ---
+const btnTte = document.getElementById('btn-tab-transporte');
+const btnVst = document.getElementById('btn-tab-visitas');
+const secTte = document.getElementById('sec-transporte');
+const secVst = document.getElementById('sec-visitas');
+
+btnTte.onclick = () => {
+    // Mostrar/Ocultar secciones
+    secTte.style.display = 'block';
+    secVst.style.display = 'none';
+    
+    // Cambiar colores (Clases)
+    btnTte.classList.add('active'); // Se pone verde
+    btnVst.classList.remove('active'); // Vuelve al color normal
+};
+
+btnVst.onclick = () => {
+    // Mostrar/Ocultar secciones
+    secVst.style.display = 'block';
+    secTte.style.display = 'none';
+    
+    // Cambiar colores (Clases)
+    btnVst.classList.add('active'); // Se pone verde
+    btnTte.classList.remove('active'); // Vuelve al color normal
+};
 
     // Autocompletados
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
     activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
 }
+
