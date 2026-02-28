@@ -22,6 +22,10 @@ async function inicializarApp() {
             cargarGuardiasYListados();
             inicializarTransporte();
             inicializarVisitas();
+            
+            // Inicializamos Abastecimiento apenas loguea
+            const { inicializarAbastecimiento } = await import('./jsabs.js');
+            inicializarAbastecimiento();
         } else {
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('app-body').style.display = 'none';
@@ -87,17 +91,13 @@ async function inicializarApp() {
         ocultarTodo();
         secAbs.style.display = 'block';
         btnAbs.classList.add('active');
-        // Cargamos la lista de camiones en recinto cada vez que entramos a la pestaña
         const { cargarCamionesEnRecinto } = await import('./jsabs.js');
         cargarCamionesEnRecinto();
     };
 
-    // --- INICIALIZACIÓN DE MÓDULOS Y AUTOCOMPLETADOS ---
+    // --- AUTOCOMPLETADOS GENERALES ---
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
     activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
-    
-    // Importamos e inicializamos la lógica de Abastecimiento (RUT, Nombre, Patentes)
-    import('./jsabs.js').then(m => m.inicializarAbastecimiento());
 
     // --- MAESTRO CONDUCTOR ---
     const mRut = document.getElementById('m-rut');
@@ -109,34 +109,4 @@ async function inicializarApp() {
     if(formMaestro) {
         formMaestro.onsubmit = async (e) => {
             e.preventDefault();
-            
-            const rutValor = document.getElementById('m-rut').value;
-            const nombreValor = document.getElementById('m-nombre').value;
-            const empresaValor = document.getElementById('m-empresa').value;
-
-            try {
-                const q = query(collection(db, "conductores"), where("rut", "==", rutValor));
-                const querySnapshot = await getDocs(q);
-
-                if (!querySnapshot.empty) {
-                    alert(`⚠️ El conductor con RUT ${rutValor} ya existe en el Maestro.`);
-                    return;
-                }
-
-                await addDoc(collection(db, "conductores"), { 
-                    rut: rutValor, 
-                    nombre: nombreValor, 
-                    empresa: empresaValor 
-                });
-
-                alert("✅ Conductor agregado exitosamente.");
-                formMaestro.reset();
-                document.getElementById('modal-conductor').style.display = 'none';
-
-            } catch (error) {
-                console.error("Error en Maestro:", error);
-                alert("Error al validar datos.");
-            }
-        };
-    }
-} // Fin de inicializarApp
+            const rutValor = document.getElementById('m-rut').
