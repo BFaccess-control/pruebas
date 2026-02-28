@@ -90,5 +90,56 @@ btnVst.onclick = () => {
     // Autocompletados
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
     activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
+
+    // --- MAESTRO CONDUCTOR (Dentro de inicializarApp) ---
+    
+    // 1. Formatear RUT automáticamente al escribir en el modal
+    const mRut = document.getElementById('m-rut');
+    if(mRut) {
+        mRut.oninput = (e) => e.target.value = formatearRUT(e.target.value);
+    }
+
+    // 2. Lógica de Guardado con Validación de Duplicados
+    const formMaestro = document.getElementById('form-maestro');
+    if(formMaestro) {
+        formMaestro.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            // Importamos herramientas de búsqueda de Firestore
+            const { query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            
+            const rutValor = document.getElementById('m-rut').value;
+            const nombreValor = document.getElementById('m-nombre').value;
+            const empresaValor = document.getElementById('m-empresa').value;
+
+            try {
+                // VALIDACIÓN: ¿Ya existe este RUT?
+                const q = query(collection(db, "conductores"), where("rut", "==", rutValor));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    alert(`⚠️ El conductor con RUT ${rutValor} ya existe en el Maestro.`);
+                    return; // Abortamos el guardado
+                }
+
+                // Si no existe, lo agregamos
+                await addDoc(collection(db, "conductores"), { 
+                    rut: rutValor, 
+                    nombre: nombreValor, 
+                    empresa: empresaValor 
+                });
+
+                alert("✅ Conductor agregado exitosamente.");
+                e.target.reset();
+                document.getElementById('modal-conductor').style.display = 'none';
+
+            } catch (error) {
+                console.error("Error en Maestro:", error);
+                alert("Error al validar datos.");
+            }
+        };
+    }
+} // <--- Esta es la llave que cierra inicializarApp
 }
+
 
