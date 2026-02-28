@@ -1,5 +1,5 @@
 import { db } from './jslg.js';
-import { collection, addDoc, onSnapshot, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, getDocs, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let maestros = [];
 let listaGuardias = [];
@@ -13,7 +13,7 @@ export const formatearRUT = (rut) => {
 
 export const formatearPatente = (val) => {
     let v = val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-    if (v.length > 4) v = v.slice(0, -1) + "-" + v.slice(-1); // Corregido según tu lógica original
+    if (v.length > 4) v = v.slice(0, -1) + "-" + v.slice(-1); 
     return v.substring(0, 7);
 };
 
@@ -22,22 +22,31 @@ onSnapshot(collection(db, "vehiculos"), (snap) => { maestroPatentes = snap.docs.
 
 export function activarAutocompletadoRUT(idInput, idBox) {
     const input = document.getElementById(idInput);
+    if (!input) return;
+    
     input.oninput = (e) => {
         const val = e.target.value = formatearRUT(e.target.value);
         const bLimpia = val.replace(/-/g, "");
         const box = document.getElementById(idBox);
         box.innerHTML = "";
         if (bLimpia.length < 3) return;
+        
         maestros.filter(m => m.rut.replace(/-/g, "").startsWith(bLimpia)).forEach(p => {
-            const d = document.createElement('div'); d.className="sugerencia-item"; d.textContent=`${p.rut} | ${p.nombre}`;
+            const d = document.createElement('div'); 
+            d.className="sugerencia-item"; 
+            d.textContent=`${p.rut} | ${p.nombre}`;
             d.onclick = () => {
                 input.value = p.rut;
+                // Lógica de autorelleno según el formulario
                 if(idInput === 't-rut') {
                     document.getElementById('t-nombre').value = p.nombre;
                     document.getElementById('t-empresa').value = p.empresa;
-                } else {
+                } else if(idInput === 'v-rut') {
                     document.getElementById('v-nombre').value = p.nombre;
                     document.getElementById('v-representa').value = p.empresa || "";
+                } else if(idInput === 'a-rut') {
+                    // Autorelleno para Abastecimiento
+                    document.getElementById('a-nombre').value = p.nombre;
                 }
                 box.innerHTML = "";
             };
@@ -48,6 +57,8 @@ export function activarAutocompletadoRUT(idInput, idBox) {
 
 export function activarAutocompletadoPatente(idInput, idBox) {
     const input = document.getElementById(idInput);
+    if (!input) return;
+
     input.oninput = (e) => {
         const val = e.target.value = formatearPatente(e.target.value);
         const box = document.getElementById(idBox);
@@ -62,21 +73,30 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
+// CARGA DE GUARDIAS (Actualizada para Abastecimiento)
 export const cargarGuardiasYListados = () => {
     onSnapshot(collection(db, "lista_guardias"), (s) => {
         listaGuardias = s.docs.map(d => ({id: d.id, ...d.data()}));
-        ['t-guardia-id', 'v-guardia-id'].forEach(id => {
+        
+        // Añadimos 'a-guardia-id' a la lista de selects a llenar
+        ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'].forEach(id => {
             const sel = document.getElementById(id);
             if(sel) {
-                sel.innerHTML = '<option value="">-- Guardia --</option>';
-                listaGuardias.forEach(g => sel.innerHTML += `<option value="${g.nombre}">${g.nombre}</option>`);
+                sel.innerHTML = '<option value="">-- Seleccione Guardia --</option>';
+                listaGuardias.forEach(g => {
+                    sel.innerHTML += `<option value="${g.nombre}">${g.nombre}</option>`;
+                });
             }
         });
+
         const adm = document.getElementById('lista-guardias-admin');
         if(adm) {
             adm.innerHTML = "";
             listaGuardias.forEach(g => {
-                adm.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;"><span>${g.nombre}</span><button onclick="borrarG('${g.id}')" style="color:red; border:none; background:none; cursor:pointer;">✖</button></div>`;
+                adm.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
+                    <span>${g.nombre}</span>
+                    <button onclick="borrarG('${g.id}')" style="color:red; border:none; background:none; cursor:pointer;">✖</button>
+                </div>`;
             });
         }
     });
@@ -84,12 +104,14 @@ export const cargarGuardiasYListados = () => {
 
 window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
 
+// GUARDAR REGISTRO (Mantiene compatibilidad con todo)
 export const guardarRegistro = async (data) => {
     const ahora = new Date();
     data.fecha = ahora.toLocaleDateString('es-CL');
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
     const anio = ahora.getFullYear(), mes = String(ahora.getMonth() + 1).padStart(2, '0'), dia = String(ahora.getDate()).padStart(2, '0');
     data.fechaFiltro = `${anio}-${mes}-${dia}`;
+    // Se guarda en "ingresos" para los reportes unificados
     await addDoc(collection(db, "ingresos"), data);
     alert("Registro guardado con éxito");
 };
@@ -100,20 +122,42 @@ export const aprenderPatente = async (pat) => {
     }
 };
 
+// EXPORTAR EXCEL (Actualizado para incluir Abastecimiento)
 export const exportarExcel = async (inicio, fin, tipoF) => {
+    // Nota: Cambiamos a "registros" si es que Abastecimiento guarda allí, 
+    // pero por ahora lo mantengo en "ingresos" para consistencia con tu código
     const snap = await getDocs(collection(db, "ingresos"));
     let filtrados = snap.docs.map(d => d.data()).filter(r => {
         const cF = r.fechaFiltro >= inicio && r.fechaFiltro <= fin;
         const cT = (tipoF === "TODOS") || (r.tipo === tipoF);
         return cF && cT;
     });
+
     if(filtrados.length === 0) return alert("Sin datos para este rango.");
+    
     filtrados.sort((a, b) => (a.fechaFiltro + a.hora).localeCompare(b.fechaFiltro + b.hora));
+    
     const datosOrdenados = filtrados.map(r => {
-        const fila = { "Fecha": r.fecha, "Hora": r.hora, "Tipo": r.tipo, "Guardia": r.guardia || "No especificado", "Rut": r.rut, "Nombre": r.nombre, "Empresa": r.empresa, "Patente": r.patente };
+        const fila = { 
+            "Fecha": r.fecha, 
+            "Hora Ingreso": r.hora || r.horaIngreso, 
+            "Tipo": r.tipo, 
+            "Guardia": r.guardia || "No especificado", 
+            "Rut": r.rut, 
+            "Nombre": r.nombre, 
+            "Patente": r.patente 
+        };
+        
+        if (r.empresa) fila["Empresa"] = r.empresa;
+        if (r.guia) fila["Guía"] = r.guia;
+        if (r.rampla) fila["Rampla"] = r.rampla;
+        if (r.horaSalida) fila["Hora Salida"] = r.horaSalida;
+        if (r.permanencia) fila["Permanencia"] = r.permanencia;
         if (r.motivo) fila["Motivo"] = r.motivo;
+        
         return fila;
     });
+
     const ws = XLSX.utils.json_to_sheet(datosOrdenados), wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reporte");
     XLSX.writeFile(wb, `Reporte_Prosud_${tipoF}.xlsx`);
