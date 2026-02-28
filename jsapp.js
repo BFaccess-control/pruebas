@@ -61,7 +61,7 @@ async function inicializarApp() {
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // --- NAVEGACIÓN (3 pestañas) ---
+    // --- NAVEGACIÓN ---
     const btnTte = document.getElementById('btn-tab-transporte');
     const btnVst = document.getElementById('btn-tab-visitas');
     const btnAbs = document.getElementById('btn-tab-abastecimiento');
@@ -95,7 +95,7 @@ async function inicializarApp() {
         cargarCamionesEnRecinto();
     };
 
-    // --- AUTOCOMPLETADOS GENERALES ---
+    // --- AUTOCOMPLETADOS ---
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
     activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
 
@@ -131,4 +131,4 @@ async function inicializarApp() {
             }
         };
     }
-} // <--- ESTA ES LA LLAVE QUE FALTABA PARA CERRAR inicializarApp
+}
