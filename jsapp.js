@@ -131,4 +131,28 @@ async function inicializarApp() {
             }
         };
     }
+    // --- LÓGICA PARA GESTIONAR GUARDIAS ---
+    const btnAddGuardia = document.getElementById('btn-add-guardia');
+    const inputNuevoGuardia = document.getElementById('nuevo-guardia-nombre');
+
+    if (btnAddGuardia) {
+        btnAddGuardia.onclick = async () => {
+            const nombre = inputNuevoGuardia.value.trim();
+            if (!nombre) return alert("Por favor, ingrese un nombre.");
+
+            try {
+                const { db } = await import('./jslg.js');
+                const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                
+                await addDoc(collection(db, "lista_guardias"), { nombre: nombre });
+                
+                alert("✅ Guardia " + nombre + " agregado con éxito.");
+                inputNuevoGuardia.value = ""; // Limpiar input
+            } catch (error) {
+                console.error("Error al agregar guardia:", error);
+                alert("Error de permisos: Asegúrate de publicar las nuevas reglas en Firebase.");
+            }
+        };
+    }
 }
+
