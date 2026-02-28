@@ -3,21 +3,25 @@ import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimest
 import { activarAutocompletadoRUT, activarAutocompletadoPatente, aprenderPatente } from './jsmtr.js';
 
 export const inicializarAbastecimiento = () => {
-    const form = document.getElementById('form-form-abastecimiento');
-    if(!form) return;
+    // CORRECCIÓN: ID corregido para que coincida con el HTML (form-abastecimiento)
+    const form = document.getElementById('form-abastecimiento');
+    if(!form) {
+        console.error("No se encontró el formulario de abastecimiento");
+        return;
+    }
 
-    // Activar Autocompletados (Punto 1: Aprendizaje y sugerencias)
+    // Activar Autocompletados
     activarAutocompletadoRUT('a-rut', 'a-sugerencias-rut');
     activarAutocompletadoPatente('a-patente', 'a-sugerencias-patente');
     activarAutocompletadoPatente('a-rampla', 'a-sugerencias-rampla');
 
     form.onsubmit = async (e) => {
-        e.preventDefault();
+        e.preventDefault(); // <--- Detiene la recarga de página
         
         const patenteCamion = document.getElementById('a-patente').value.toUpperCase();
         const patenteRampla = document.getElementById('a-rampla').value.toUpperCase();
 
-        // VALIDADOR DE SEGURIDAD (Punto 4: No permitir duplicados en recinto)
+        // VALIDADOR DE SEGURIDAD (No duplicados en recinto)
         const q = query(collection(db, "registros"), 
             where("tipo", "==", "ABASTECIMIENTO"),
             where("estado", "==", "En Recinto"),
@@ -29,9 +33,10 @@ export const inicializarAbastecimiento = () => {
             return;
         }
 
+        // CORRECCIÓN: ID del select de guardia ajustado a 'a-guardia-id'
         const data = {
             tipo: "ABASTECIMIENTO",
-            guardia: document.getElementById('a-guardia').value,
+            guardia: document.getElementById('a-guardia-id').value,
             rut: document.getElementById('a-rut').value,
             nombre: document.getElementById('a-nombre').value,
             guia: document.getElementById('a-guia').value,
@@ -44,19 +49,31 @@ export const inicializarAbastecimiento = () => {
             permanencia: "Calculando..."
         };
 
-        await addDoc(collection(db, "registros"), data);
-        await aprenderPatente(patenteCamion);
-        if(patenteRampla) await aprenderPatente(patenteRampla);
-        
-        alert("✅ Ingreso registrado");
-        form.reset();
-        cargarCamionesEnRecinto();
+        try {
+            // Guardamos en 'registros' (para que lo lea la tabla de abajo)
+            await addDoc(collection(db, "registros"), data);
+            
+            // También lo guardamos en 'ingresos' (para que aparezca en el Excel de jsmtr.js)
+            await addDoc(collection(db, "ingresos"), data);
+
+            await aprenderPatente(patenteCamion);
+            if(patenteRampla) await aprenderPatente(patenteRampla);
+            
+            alert("✅ Ingreso registrado exitosamente");
+            form.reset();
+            cargarCamionesEnRecinto();
+        } catch (error) {
+            console.error("Error al guardar:", error);
+            alert("Error al registrar el ingreso.");
+        }
     };
 };
 
-// LISTA EN RECINTO Y BOTÓN DE SALIDA (Punto 2)
+// LISTA EN RECINTO Y BOTÓN DE SALIDA
 export const cargarCamionesEnRecinto = async () => {
     const tabla = document.getElementById('tabla-abastecimiento-recinto');
+    if(!tabla) return;
+
     const q = query(collection(db, "registros"), 
                 where("tipo", "==", "ABASTECIMIENTO"), 
                 where("estado", "==", "En Recinto"));
@@ -71,7 +88,7 @@ export const cargarCamionesEnRecinto = async () => {
                 <td>${d.nombre}<br><small>${d.rut}</small></td>
                 <td>C: ${d.patente}${d.rampla ? '<br>R: '+d.rampla : ''}</td>
                 <td>${d.horaIngreso}</td>
-                <td><button class="btn-salida" data-id="${res.id}" data-ingreso="${d.horaIngreso}">Salida</button></td>
+                <td><button class="btn-salida" data-id="${res.id}" data-ingreso="${d.horaIngreso}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Salida</button></td>
             </tr>`;
         tabla.innerHTML += row;
     });
@@ -83,7 +100,7 @@ export const cargarCamionesEnRecinto = async () => {
             const horaI = e.target.dataset.ingreso;
             const horaS = new Date().toLocaleTimeString('es-CL', {hour12:false});
             
-            // Cálculo de permanencia (Punto 9)
+            // Cálculo de permanencia
             const [h1, m1] = horaI.split(':').map(Number);
             const [h2, m2] = horaS.split(':').map(Number);
             const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
