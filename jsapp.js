@@ -57,25 +57,43 @@ async function inicializarApp() {
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // --- NAVEGACIÓN ---
-    const btnTte = document.getElementById('btn-tab-transporte');
-    const btnVst = document.getElementById('btn-tab-visitas');
-    const secTte = document.getElementById('sec-transporte');
-    const secVst = document.getElementById('sec-visitas');
+    // --- NAVEGACIÓN (Actualizada para 3 pestañas) ---
+const btnTte = document.getElementById('btn-tab-transporte');
+const btnVst = document.getElementById('btn-tab-visitas');
+const btnAbs = document.getElementById('btn-tab-abastecimiento'); // Nuevo
 
-    btnTte.onclick = () => {
-        secTte.style.display = 'block';
-        secVst.style.display = 'none';
-        btnTte.classList.add('active');
-        btnVst.classList.remove('active');
-    };
+const secTte = document.getElementById('sec-transporte');
+const secVst = document.getElementById('sec-visitas');
+const secAbs = document.getElementById('sec-abastecimiento'); // Nuevo
 
-    btnVst.onclick = () => {
-        secVst.style.display = 'block';
-        secTte.style.display = 'none';
-        btnVst.classList.add('active');
-        btnTte.classList.remove('active');
-    };
+// Función auxiliar para ocultar todo antes de mostrar lo nuevo
+const ocultarTodo = () => {
+    [secTte, secVst, secAbs].forEach(s => { if(s) s.style.display = 'none'; });
+    [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.remove('active'); });
+};
+
+btnTte.onclick = () => {
+    ocultarTodo();
+    secTte.style.display = 'block';
+    btnTte.classList.add('active');
+};
+
+btnVst.onclick = () => {
+    ocultarTodo();
+    secVst.style.display = 'block';
+    btnVst.classList.add('active');
+};
+
+// --- NUEVA LÓGICA PARA ABASTECIMIENTO ---
+btnAbs.onclick = async () => {
+    ocultarTodo();
+    secAbs.style.display = 'block';
+    btnAbs.classList.add('active');
+    
+    // Importamos dinámicamente el "cerebro" de abastecimiento para cargar la tabla
+    const { cargarCamionesEnRecinto } = await import('./jsabs.js');
+    cargarCamionesEnRecinto();
+};
 
     // Autocompletados
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
@@ -122,3 +140,4 @@ async function inicializarApp() {
         };
     }
 } // <--- Fin de inicializarApp
+
