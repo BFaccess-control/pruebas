@@ -109,4 +109,26 @@ async function inicializarApp() {
     if(formMaestro) {
         formMaestro.onsubmit = async (e) => {
             e.preventDefault();
-            const rutValor = document.getElementById('m-rut').
+            const rutValor = document.getElementById('m-rut').value;
+            const nombreValor = document.getElementById('m-nombre').value;
+            const empresaValor = document.getElementById('m-empresa').value;
+
+            try {
+                const q = query(collection(db, "conductores"), where("rut", "==", rutValor));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    alert(`⚠️ El conductor con RUT ${rutValor} ya existe.`);
+                    return;
+                }
+                await addDoc(collection(db, "conductores"), { 
+                    rut: rutValor, nombre: nombreValor, empresa: empresaValor 
+                });
+                alert("✅ Conductor agregado.");
+                formMaestro.reset();
+                document.getElementById('modal-conductor').style.display = 'none';
+            } catch (error) {
+                alert("Error al validar datos.");
+            }
+        };
+    }
+} // <--- ESTA ES LA LLAVE QUE FALTABA PARA CERRAR inicializarApp
