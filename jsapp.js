@@ -57,47 +57,47 @@ async function inicializarApp() {
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // --- NAVEGACIÓN (Actualizada para 3 pestañas) ---
-const btnTte = document.getElementById('btn-tab-transporte');
-const btnVst = document.getElementById('btn-tab-visitas');
-const btnAbs = document.getElementById('btn-tab-abastecimiento'); // Nuevo
+    // --- NAVEGACIÓN (3 pestañas) ---
+    const btnTte = document.getElementById('btn-tab-transporte');
+    const btnVst = document.getElementById('btn-tab-visitas');
+    const btnAbs = document.getElementById('btn-tab-abastecimiento');
 
-const secTte = document.getElementById('sec-transporte');
-const secVst = document.getElementById('sec-visitas');
-const secAbs = document.getElementById('sec-abastecimiento'); // Nuevo
+    const secTte = document.getElementById('sec-transporte');
+    const secVst = document.getElementById('sec-visitas');
+    const secAbs = document.getElementById('sec-abastecimiento');
 
-// Función auxiliar para ocultar todo antes de mostrar lo nuevo
-const ocultarTodo = () => {
-    [secTte, secVst, secAbs].forEach(s => { if(s) s.style.display = 'none'; });
-    [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.remove('active'); });
-};
+    const ocultarTodo = () => {
+        [secTte, secVst, secAbs].forEach(s => { if(s) s.style.display = 'none'; });
+        [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.remove('active'); });
+    };
 
-btnTte.onclick = () => {
-    ocultarTodo();
-    secTte.style.display = 'block';
-    btnTte.classList.add('active');
-};
+    btnTte.onclick = () => {
+        ocultarTodo();
+        secTte.style.display = 'block';
+        btnTte.classList.add('active');
+    };
 
-btnVst.onclick = () => {
-    ocultarTodo();
-    secVst.style.display = 'block';
-    btnVst.classList.add('active');
-};
+    btnVst.onclick = () => {
+        ocultarTodo();
+        secVst.style.display = 'block';
+        btnVst.classList.add('active');
+    };
 
-// --- NUEVA LÓGICA PARA ABASTECIMIENTO ---
-btnAbs.onclick = async () => {
-    ocultarTodo();
-    secAbs.style.display = 'block';
-    btnAbs.classList.add('active');
-    
-    // Importamos dinámicamente el "cerebro" de abastecimiento para cargar la tabla
-    const { cargarCamionesEnRecinto } = await import('./jsabs.js');
-    cargarCamionesEnRecinto();
-};
+    btnAbs.onclick = async () => {
+        ocultarTodo();
+        secAbs.style.display = 'block';
+        btnAbs.classList.add('active');
+        // Cargamos la lista de camiones en recinto cada vez que entramos a la pestaña
+        const { cargarCamionesEnRecinto } = await import('./jsabs.js');
+        cargarCamionesEnRecinto();
+    };
 
-    // Autocompletados
+    // --- INICIALIZACIÓN DE MÓDULOS Y AUTOCOMPLETADOS ---
     activarAutocompletadoRUT('t-rut', 't-sugerencias');
     activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
+    
+    // Importamos e inicializamos la lógica de Abastecimiento (RUT, Nombre, Patentes)
+    import('./jsabs.js').then(m => m.inicializarAbastecimiento());
 
     // --- MAESTRO CONDUCTOR ---
     const mRut = document.getElementById('m-rut');
@@ -108,7 +108,7 @@ btnAbs.onclick = async () => {
     const formMaestro = document.getElementById('form-maestro');
     if(formMaestro) {
         formMaestro.onsubmit = async (e) => {
-            e.preventDefault(); // Detiene el refresco de página
+            e.preventDefault();
             
             const rutValor = document.getElementById('m-rut').value;
             const nombreValor = document.getElementById('m-nombre').value;
@@ -139,5 +139,4 @@ btnAbs.onclick = async () => {
             }
         };
     }
-} // <--- Fin de inicializarApp
-
+} // Fin de inicializarApp
