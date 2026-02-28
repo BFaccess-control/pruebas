@@ -37,7 +37,6 @@ export function activarAutocompletadoRUT(idInput, idBox) {
             d.textContent=`${p.rut} | ${p.nombre}`;
             d.onclick = () => {
                 input.value = p.rut;
-                // Lógica de autorelleno según el formulario
                 if(idInput === 't-rut') {
                     document.getElementById('t-nombre').value = p.nombre;
                     document.getElementById('t-empresa').value = p.empresa;
@@ -45,7 +44,6 @@ export function activarAutocompletadoRUT(idInput, idBox) {
                     document.getElementById('v-nombre').value = p.nombre;
                     document.getElementById('v-representa').value = p.empresa || "";
                 } else if(idInput === 'a-rut') {
-                    // Autorelleno para Abastecimiento
                     document.getElementById('a-nombre').value = p.nombre;
                 }
                 box.innerHTML = "";
@@ -73,20 +71,21 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// CARGA DE GUARDIAS (Actualizada para Abastecimiento)
+// CORRECCIÓN AQUÍ: Aseguramos que el llenado ocurra dentro del Snapshot
 export const cargarGuardiasYListados = () => {
     onSnapshot(collection(db, "lista_guardias"), (s) => {
         listaGuardias = s.docs.map(d => ({id: d.id, ...d.data()}));
         
-        // Añadimos 'a-guardia-id' a la lista de selects a llenar
-        ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'].forEach(id => {
-            const sel = document.getElementById(id);
-            if(sel) {
-                sel.innerHTML = '<option value="">-- Seleccione Guardia --</option>';
-                listaGuardias.forEach(g => {
-                    sel.innerHTML += `<option value="${g.nombre}">${g.nombre}</option>`;
-                });
-            }
+        let opciones = '<option value="">-- Seleccione Guardia --</option>';
+        listaGuardias.forEach(g => {
+            opciones += `<option value="${g.nombre}">${g.nombre}</option>`;
+        });
+
+        // Llenamos los tres selects con la lista real de Firebase
+        const selects = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = opciones;
         });
 
         const adm = document.getElementById('lista-guardias-admin');
@@ -104,14 +103,12 @@ export const cargarGuardiasYListados = () => {
 
 window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
 
-// GUARDAR REGISTRO (Mantiene compatibilidad con todo)
 export const guardarRegistro = async (data) => {
     const ahora = new Date();
     data.fecha = ahora.toLocaleDateString('es-CL');
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
     const anio = ahora.getFullYear(), mes = String(ahora.getMonth() + 1).padStart(2, '0'), dia = String(ahora.getDate()).padStart(2, '0');
     data.fechaFiltro = `${anio}-${mes}-${dia}`;
-    // Se guarda en "ingresos" para los reportes unificados
     await addDoc(collection(db, "ingresos"), data);
     alert("Registro guardado con éxito");
 };
@@ -122,10 +119,7 @@ export const aprenderPatente = async (pat) => {
     }
 };
 
-// EXPORTAR EXCEL (Actualizado para incluir Abastecimiento)
 export const exportarExcel = async (inicio, fin, tipoF) => {
-    // Nota: Cambiamos a "registros" si es que Abastecimiento guarda allí, 
-    // pero por ahora lo mantengo en "ingresos" para consistencia con tu código
     const snap = await getDocs(collection(db, "ingresos"));
     let filtrados = snap.docs.map(d => d.data()).filter(r => {
         const cF = r.fechaFiltro >= inicio && r.fechaFiltro <= fin;
@@ -140,21 +134,17 @@ export const exportarExcel = async (inicio, fin, tipoF) => {
     const datosOrdenados = filtrados.map(r => {
         const fila = { 
             "Fecha": r.fecha, 
-            "Hora Ingreso": r.hora || r.horaIngreso, 
+            "Hora": r.hora || r.horaIngreso, 
             "Tipo": r.tipo, 
             "Guardia": r.guardia || "No especificado", 
             "Rut": r.rut, 
             "Nombre": r.nombre, 
             "Patente": r.patente 
         };
-        
         if (r.empresa) fila["Empresa"] = r.empresa;
         if (r.guia) fila["Guía"] = r.guia;
         if (r.rampla) fila["Rampla"] = r.rampla;
-        if (r.horaSalida) fila["Hora Salida"] = r.horaSalida;
         if (r.permanencia) fila["Permanencia"] = r.permanencia;
-        if (r.motivo) fila["Motivo"] = r.motivo;
-        
         return fila;
     });
 
