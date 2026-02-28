@@ -140,6 +140,7 @@ btnVst.onclick = () => {
         };
     }
 } // <--- Esta es la llave que cierra inicializarApp
-}
+
+
 
 
