@@ -1,11 +1,11 @@
 // Forzamos que el DOM esté listo antes de actuar
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("JSAPP cargado y listo para Prosud");
+    console.log("JSAPP cargado y listo");
     inicializarApp();
 });
 
 async function inicializarApp() {
-    // --- IMPORTACIONES DINÁMICAS ---
+    // Importaciones dinámicas
     const { observarSesion, configurarPermisosSeguros, iniciarSesion, cerrarSesion } = await import('./jslg.js');
     const { activarAutocompletadoRUT, activarAutocompletadoPatente, cargarGuardiasYListados, exportarExcel, formatearRUT } = await import('./jsmtr.js');
     const { db } = await import('./jslg.js');
@@ -13,50 +13,41 @@ async function inicializarApp() {
     const { inicializarTransporte } = await import('./jstte.js');
     const { inicializarVisitas } = await import('./jsvst.js');
 
-    // --- SESIÓN Y ESTADO INICIAL ---
+    // --- SESIÓN ---
     observarSesion(async (user) => {
         if (user) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-body').style.display = 'block';
-            
-            // Aplicamos permisos de administrador si es bfernandez@prosud.cl
             await configurarPermisosSeguros(user.email);
             
-            // Cargamos datos maestros y guardias
             cargarGuardiasYListados();
             inicializarTransporte();
             inicializarVisitas();
             
-            // Inicializamos Abastecimiento
+            // Inicializamos Abastecimiento apenas loguea
             const { inicializarAbastecimiento } = await import('./jsabs.js');
             inicializarAbastecimiento();
 
-            // ACTIVAMOS AUTOCOMPLETADOS (Misión Secundaria: Coherencia en todos los campos)
+            // Activar autocompletados globales
             activarAutocompletadoRUT('t-rut', 't-sugerencias');
             activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
             activarAutocompletadoRUT('a-rut', 'a-sugerencias-rut');
-            
-            activarAutocompletadoPatente('t-patente', 'p-sugerencias');
-            activarAutocompletadoPatente('v-patente', 'v-sugerencias-patente');
-            activarAutocompletadoPatente('a-patente', 'a-sugerencias-patente');
-
         } else {
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('app-body').style.display = 'none';
         }
     });
 
-    // --- ACCIONES DE LOGIN / LOGOUT ---
+    // --- ACCIONES DE BOTONES LOGIN ---
     document.getElementById('btn-login').onclick = () => {
         const email = document.getElementById('login-email').value;
         const pass = document.getElementById('login-password').value;
-        if(!email || !pass) return alert("Ingrese credenciales");
         iniciarSesion(email, pass).catch(err => alert("Error: " + err.message));
     };
 
     document.getElementById('btn-logout').onclick = () => cerrarSesion();
 
-    // --- GESTIÓN DE MODALES ---
+    // --- MODALES ---
     const asignarModal = (btnId, modalId, display) => {
         const btn = document.getElementById(btnId);
         if(btn) btn.onclick = () => document.getElementById(modalId).style.display = display;
@@ -69,16 +60,15 @@ async function inicializarApp() {
     asignarModal('btn-abrir-modal', 'modal-conductor', 'flex');
     asignarModal('btn-cerrar-modal', 'modal-conductor', 'none');
 
-    // --- REPORTES ---
     document.getElementById('btn-exportar').onclick = () => {
         const inicio = document.getElementById('fecha-inicio').value;
         const fin = document.getElementById('fecha-fin').value;
         const tipoF = document.getElementById('filtro-tipo').value;
-        if(!inicio || !fin) return alert("⚠️ Debe seleccionar el rango de fechas para el reporte.");
+        if(!inicio || !fin) return alert("Seleccione fechas");
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // --- NAVEGACIÓN ENTRE PESTAÑAS ---
+    // --- NAVEGACIÓN ---
     const btnTte = document.getElementById('btn-tab-transporte');
     const btnVst = document.getElementById('btn-tab-visitas');
     const btnAbs = document.getElementById('btn-tab-abastecimiento');
@@ -89,4 +79,52 @@ async function inicializarApp() {
 
     const ocultarTodo = () => {
         [secTte, secVst, secAbs].forEach(s => { if(s) s.style.display = 'none'; });
-        [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.
+        [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.remove('active'); });
+    };
+
+    if(btnTte) btnTte.onclick = () => { ocultarTodo(); secTte.style.display = 'block'; btnTte.classList.add('active'); };
+    if(btnVst) btnVst.onclick = () => { ocultarTodo(); secVst.style.display = 'block'; btnVst.classList.add('active'); };
+    if(btnAbs) btnAbs.onclick = async () => {
+        ocultarTodo();
+        secAbs.style.display = 'block';
+        btnAbs.classList.add('active');
+        const { cargarCamionesEnRecinto } = await import('./jsabs.js');
+        cargarCamionesEnRecinto();
+    };
+
+    // --- MAESTRO CONDUCTOR ---
+    const mRut = document.getElementById('m-rut');
+    if(mRut) mRut.oninput = (e) => e.target.value = formatearRUT(e.target.value);
+
+    const formMaestro = document.getElementById('form-maestro');
+    if(formMaestro) {
+        formMaestro.onsubmit = async (e) => {
+            e.preventDefault();
+            const rutValor = document.getElementById('m-rut').value;
+            const nombreValor = document.getElementById('m-nombre').value;
+            const empresaValor = document.getElementById('m-empresa').value;
+
+            const q = query(collection(db, "conductores"), where("rut", "==", rutValor));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) return alert(`⚠️ El conductor con RUT ${rutValor} ya existe.`);
+
+            await addDoc(collection(db, "conductores"), { rut: rutValor, nombre: nombreValor, empresa: empresaValor });
+            alert("✅ Conductor agregado.");
+            formMaestro.reset();
+            document.getElementById('modal-conductor').style.display = 'none';
+        };
+    }
+
+    // --- GESTIÓN GUARDIAS ---
+    const btnAddGuardia = document.getElementById('btn-add-guardia');
+    if (btnAddGuardia) {
+        btnAddGuardia.onclick = async () => {
+            const input = document.getElementById('nuevo-guardia-nombre');
+            const nombre = input.value.trim();
+            if (!nombre) return alert("Ingrese un nombre.");
+            await addDoc(collection(db, "lista_guardias"), { nombre: nombre });
+            alert("✅ Guardia agregado.");
+            input.value = "";
+        };
+    }
+} // <--- ESTE ES EL CIERRE QUE FALTABA
