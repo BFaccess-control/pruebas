@@ -32,9 +32,16 @@ export function activarAutocompletadoRUT(idInput, idBox) {
         const bLimpia = val.replace(/-/g, "");
         const box = document.getElementById(idBox);
         box.innerHTML = "";
+
+        // Si el usuario borra o cambia el RUT, por seguridad desbloqueamos campos 
+        // para que no se queden bloqueados con datos viejos
+        gestionarBloqueoCampos(idInput, false);
+
         if (bLimpia.length < 3) return;
         
-        maestros.filter(m => m.rut.replace(/-/g, "").startsWith(bLimpia)).forEach(p => {
+        const sugerencias = maestros.filter(m => m.rut.replace(/-/g, "").startsWith(bLimpia));
+        
+        sugerencias.forEach(p => {
             const d = document.createElement('div'); 
             d.className="sugerencia-item"; 
             d.textContent=`${p.rut} | ${p.nombre}`;
@@ -50,10 +57,24 @@ export function activarAutocompletadoRUT(idInput, idBox) {
                     document.getElementById('a-nombre').value = p.nombre;
                 }
                 box.innerHTML = "";
+                // Como el conductor existe, bloqueamos para evitar errores de tipeo
+                gestionarBloqueoCampos(idInput, true);
             };
             box.appendChild(d);
         });
     };
+}
+
+// Función auxiliar para bloquear/desbloquear según si el conductor existe
+function gestionarBloqueoCampos(idInput, bloquear) {
+    const sufijos = idInput.split('-')[0]; // 't', 'v' o 'a'
+    const nombre = document.getElementById(`${sufijos}-nombre`);
+    const empresa = document.getElementById(sufijos === 't' ? 't-empresa' : (sufijos === 'v' ? 'v-representa' : 'a-nombre'));
+
+    if (nombre) {
+        nombre.readOnly = bloquear;
+        bloquear ? nombre.classList.add('readonly') : nombre.classList.remove('readonly');
+    }
 }
 
 export function activarAutocompletadoPatente(idInput, idBox) {
@@ -110,19 +131,31 @@ export const cargarGuardiasYListados = async () => {
 
 window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
 
-// --- GUARDADO DE REGISTROS ---
+// --- GUARDADO DE REGISTROS CON VALIDACIÓN ---
 export const guardarRegistro = async (data) => {
+    // Misión Secundaria: Evitar campos vacíos
+    const camposObligatorios = ['rut', 'nombre', 'guardia', 'patente'];
+    const faltantes = camposObligatorios.filter(campo => !data[campo] || data[campo].trim() === "");
+
+    if (faltantes.length > 0) {
+        alert("❌ Error: Faltan datos obligatorios (RUT, Nombre, Guardia o Patente). El registro no se guardará.");
+        return; 
+    }
+
     const ahora = new Date();
     const anio = ahora.getFullYear();
     const mes = String(ahora.getMonth() + 1).padStart(2, '0');
     const dia = String(ahora.getDate()).padStart(2, '0');
     
-    // Normalizamos la fecha a YYYY-MM-DD para que el Excel la encuentre siempre
     data.fecha = `${anio}-${mes}-${dia}`;
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
     
-    await addDoc(collection(db, "ingresos"), data);
-    alert("Registro guardado con éxito");
+    try {
+        await addDoc(collection(db, "ingresos"), data);
+        alert("✅ Registro guardado con éxito");
+    } catch (e) {
+        alert("Error al guardar: " + e.message);
+    }
 };
 
 export const aprenderPatente = async (pat) => {
@@ -135,9 +168,7 @@ export const aprenderPatente = async (pat) => {
 export const exportarExcel = async (inicio, fin, tipoF) => {
     const snap = await getDocs(collection(db, "ingresos"));
     
-    // Filtramos usando la fecha en formato YYYY-MM-DD
     let filtrados = snap.docs.map(d => d.data()).filter(r => {
-        // Usamos r.fecha porque ahora todos se guardan así
         const cF = r.fecha >= inicio && r.fecha <= fin;
         const cT = (tipoF === "TODOS") || (r.tipo === tipoF);
         return cF && cT;
@@ -147,7 +178,6 @@ export const exportarExcel = async (inicio, fin, tipoF) => {
         return alert(`Sin datos para el rango ${inicio} al ${fin} en ${tipoF}`);
     }
     
-    // Ordenar por fecha y hora
     filtrados.sort((a, b) => (a.fecha + (a.hora || a.horaIngreso)).localeCompare(b.fecha + (b.hora || b.horaIngreso)));
     
     const datosOrdenados = filtrados.map(r => {
