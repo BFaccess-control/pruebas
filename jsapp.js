@@ -5,40 +5,47 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function inicializarApp() {
-    // Importaciones dinámicas
-    const { observarSesion, configurarPermisosSeguros, iniciarSesion, cerrarSesion } = await import('./jslg.js');
+    // --- 1. IMPORTACIONES ---
+    const { observarSesion, configurarPermisosSeguros, iniciarSesion, cerrarSesion, db } = await import('./jslg.js');
     const { activarAutocompletadoRUT, activarAutocompletadoPatente, cargarGuardiasYListados, exportarExcel, formatearRUT } = await import('./jsmtr.js');
-    const { db } = await import('./jslg.js');
     const { collection, addDoc, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
     const { inicializarTransporte } = await import('./jstte.js');
     const { inicializarVisitas } = await import('./jsvst.js');
 
-    // --- SESIÓN ---
+    // --- 2. SESIÓN Y PERMISOS ---
     observarSesion(async (user) => {
         if (user) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-body').style.display = 'block';
+            
+            // Verificación de administrador (bfernandez@prosud.cl)
             await configurarPermisosSeguros(user.email);
             
+            // Carga de datos iniciales
             cargarGuardiasYListados();
             inicializarTransporte();
             inicializarVisitas();
             
-            // Inicializamos Abastecimiento apenas loguea
+            // Carga dinámica de Abastecimiento
             const { inicializarAbastecimiento } = await import('./jsabs.js');
             inicializarAbastecimiento();
 
-            // Activar autocompletados globales
+            // ACTIVACIÓN DE AUTOCOMPLETADOS (Misión: No más campos vacíos)
             activarAutocompletadoRUT('t-rut', 't-sugerencias');
             activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
             activarAutocompletadoRUT('a-rut', 'a-sugerencias-rut');
+            
+            activarAutocompletadoPatente('t-patente', 'p-sugerencias');
+            activarAutocompletadoPatente('v-patente', 'v-sugerencias-patente');
+            activarAutocompletadoPatente('a-patente', 'a-sugerencias-patente');
+
         } else {
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('app-body').style.display = 'none';
         }
     });
 
-    // --- ACCIONES DE BOTONES LOGIN ---
+    // --- 3. BOTONES DE ACCESO ---
     document.getElementById('btn-login').onclick = () => {
         const email = document.getElementById('login-email').value;
         const pass = document.getElementById('login-password').value;
@@ -47,7 +54,7 @@ async function inicializarApp() {
 
     document.getElementById('btn-logout').onclick = () => cerrarSesion();
 
-    // --- MODALES ---
+    // --- 4. GESTIÓN DE MODALES ---
     const asignarModal = (btnId, modalId, display) => {
         const btn = document.getElementById(btnId);
         if(btn) btn.onclick = () => document.getElementById(modalId).style.display = display;
@@ -60,19 +67,19 @@ async function inicializarApp() {
     asignarModal('btn-abrir-modal', 'modal-conductor', 'flex');
     asignarModal('btn-cerrar-modal', 'modal-conductor', 'none');
 
+    // --- 5. REPORTES EXCEL ---
     document.getElementById('btn-exportar').onclick = () => {
         const inicio = document.getElementById('fecha-inicio').value;
         const fin = document.getElementById('fecha-fin').value;
         const tipoF = document.getElementById('filtro-tipo').value;
-        if(!inicio || !fin) return alert("Seleccione fechas");
+        if(!inicio || !fin) return alert("⚠️ Seleccione el rango de fechas.");
         exportarExcel(inicio, fin, tipoF);
     };
 
-    // --- NAVEGACIÓN ---
+    // --- 6. NAVEGACIÓN (TABS) ---
     const btnTte = document.getElementById('btn-tab-transporte');
     const btnVst = document.getElementById('btn-tab-visitas');
     const btnAbs = document.getElementById('btn-tab-abastecimiento');
-
     const secTte = document.getElementById('sec-transporte');
     const secVst = document.getElementById('sec-visitas');
     const secAbs = document.getElementById('sec-abastecimiento');
@@ -82,9 +89,9 @@ async function inicializarApp() {
         [btnTte, btnVst, btnAbs].forEach(b => { if(b) b.classList.remove('active'); });
     };
 
-    if(btnTte) btnTte.onclick = () => { ocultarTodo(); secTte.style.display = 'block'; btnTte.classList.add('active'); };
-    if(btnVst) btnVst.onclick = () => { ocultarTodo(); secVst.style.display = 'block'; btnVst.classList.add('active'); };
-    if(btnAbs) btnAbs.onclick = async () => {
+    btnTte.onclick = () => { ocultarTodo(); secTte.style.display = 'block'; btnTte.classList.add('active'); };
+    btnVst.onclick = () => { ocultarTodo(); secVst.style.display = 'block'; btnVst.classList.add('active'); };
+    btnAbs.onclick = async () => {
         ocultarTodo();
         secAbs.style.display = 'block';
         btnAbs.classList.add('active');
@@ -92,7 +99,7 @@ async function inicializarApp() {
         cargarCamionesEnRecinto();
     };
 
-    // --- MAESTRO CONDUCTOR ---
+    // --- 7. MAESTRO CONDUCTOR ---
     const mRut = document.getElementById('m-rut');
     if(mRut) mRut.oninput = (e) => e.target.value = formatearRUT(e.target.value);
 
@@ -100,25 +107,27 @@ async function inicializarApp() {
     if(formMaestro) {
         formMaestro.onsubmit = async (e) => {
             e.preventDefault();
-            const rutValor = document.getElementById('m-rut').value;
-            const nombreValor = document.getElementById('m-nombre').value;
-            const empresaValor = document.getElementById('m-empresa').value;
+            const rutVal = document.getElementById('m-rut').value;
+            const nomVal = document.getElementById('m-nombre').value;
+            const empVal = document.getElementById('m-empresa').value;
 
-            const q = query(collection(db, "conductores"), where("rut", "==", rutValor));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) return alert(`⚠️ El conductor con RUT ${rutValor} ya existe.`);
+            try {
+                const q = query(collection(db, "conductores"), where("rut", "==", rutVal));
+                const snap = await getDocs(q);
+                if (!snap.empty) return alert(`⚠️ El RUT ${rutVal} ya existe.`);
 
-            await addDoc(collection(db, "conductores"), { rut: rutValor, nombre: nombreValor, empresa: empresaValor });
-            alert("✅ Conductor agregado.");
-            formMaestro.reset();
-            document.getElementById('modal-conductor').style.display = 'none';
+                await addDoc(collection(db, "conductores"), { rut: rutVal, nombre: nomVal, empresa: empVal });
+                alert("✅ Conductor agregado.");
+                formMaestro.reset();
+                document.getElementById('modal-conductor').style.display = 'none';
+            } catch (err) { alert("Error al guardar maestro."); }
         };
     }
 
-    // --- GESTIÓN GUARDIAS ---
-    const btnAddGuardia = document.getElementById('btn-add-guardia');
-    if (btnAddGuardia) {
-        btnAddGuardia.onclick = async () => {
+    // --- 8. GESTIÓN GUARDIAS (ADMIN) ---
+    const btnAddG = document.getElementById('btn-add-guardia');
+    if (btnAddG) {
+        btnAddG.onclick = async () => {
             const input = document.getElementById('nuevo-guardia-nombre');
             const nombre = input.value.trim();
             if (!nombre) return alert("Ingrese un nombre.");
@@ -127,4 +136,4 @@ async function inicializarApp() {
             input.value = "";
         };
     }
-} // <--- ESTE ES EL CIERRE QUE FALTABA
+}
