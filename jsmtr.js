@@ -1,10 +1,11 @@
 import { db } from './jslg.js';
-import { collection, addDoc, onSnapshot, getDocs, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, getDocs, deleteDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let maestros = [];
 let listaGuardias = [];
 let maestroPatentes = [];
 
+// --- FORMATEADORES ---
 export const formatearRUT = (rut) => {
     let v = rut.replace(/[^\dkK]/g, "");
     if (v.length > 1) v = v.slice(0, -1) + "-" + v.slice(-1);
@@ -17,9 +18,11 @@ export const formatearPatente = (val) => {
     return v.substring(0, 7);
 };
 
+// --- SUSCRIPCIONES A MAESTROS ---
 onSnapshot(collection(db, "conductores"), (snap) => { maestros = snap.docs.map(d => d.data()); });
 onSnapshot(collection(db, "vehiculos"), (snap) => { maestroPatentes = snap.docs.map(d => d.data()); });
 
+// --- AUTOCOMPLETADOS ---
 export function activarAutocompletadoRUT(idInput, idBox) {
     const input = document.getElementById(idInput);
     if (!input) return;
@@ -71,11 +74,10 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// FUNCIÓN DE CARGA MEJORADA
+// --- GESTIÓN DE GUARDIAS ---
 export const cargarGuardiasYListados = async () => {
     const colRef = collection(db, "lista_guardias");
 
-    // Función interna para renderizar en los selects
     const renderizar = (docs) => {
         listaGuardias = docs.map(d => ({id: d.id, ...d.data()}));
         let opciones = '<option value="">-- Seleccione Guardia --</option>';
@@ -101,24 +103,24 @@ export const cargarGuardiasYListados = async () => {
         }
     };
 
-    // 1. Carga inicial inmediata
     const inicialSnap = await getDocs(colRef);
     renderizar(inicialSnap.docs);
-
-    // 2. Suscripción para cambios en tiempo real
-    onSnapshot(colRef, (s) => {
-        renderizar(s.docs);
-    });
+    onSnapshot(colRef, (s) => { renderizar(s.docs); });
 };
 
 window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
 
+// --- GUARDADO DE REGISTROS ---
 export const guardarRegistro = async (data) => {
     const ahora = new Date();
-    data.fecha = ahora.toLocaleDateString('es-CL');
+    const anio = ahora.getFullYear();
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    
+    // Normalizamos la fecha a YYYY-MM-DD para que el Excel la encuentre siempre
+    data.fecha = `${anio}-${mes}-${dia}`;
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
-    const anio = ahora.getFullYear(), mes = String(ahora.getMonth() + 1).padStart(2, '0'), dia = String(ahora.getDate()).padStart(2, '0');
-    data.fechaFiltro = `${anio}-${mes}-${dia}`;
+    
     await addDoc(collection(db, "ingresos"), data);
     alert("Registro guardado con éxito");
 };
@@ -129,22 +131,32 @@ export const aprenderPatente = async (pat) => {
     }
 };
 
+// --- EXPORTACIÓN A EXCEL CORREGIDA ---
 export const exportarExcel = async (inicio, fin, tipoF) => {
     const snap = await getDocs(collection(db, "ingresos"));
+    
+    // Filtramos usando la fecha en formato YYYY-MM-DD
     let filtrados = snap.docs.map(d => d.data()).filter(r => {
-        const cF = r.fechaFiltro >= inicio && r.fechaFiltro <= fin;
+        // Usamos r.fecha porque ahora todos se guardan así
+        const cF = r.fecha >= inicio && r.fecha <= fin;
         const cT = (tipoF === "TODOS") || (r.tipo === tipoF);
         return cF && cT;
     });
 
-    if(filtrados.length === 0) return alert("Sin datos para este rango.");
+    if(filtrados.length === 0) {
+        return alert(`Sin datos para el rango ${inicio} al ${fin} en ${tipoF}`);
+    }
     
-    filtrados.sort((a, b) => (a.fechaFiltro + a.hora).localeCompare(b.fechaFiltro + b.hora));
+    // Ordenar por fecha y hora
+    filtrados.sort((a, b) => (a.fecha + (a.hora || a.horaIngreso)).localeCompare(b.fecha + (b.hora || b.horaIngreso)));
     
     const datosOrdenados = filtrados.map(r => {
         const fila = { 
             "Fecha": r.fecha, 
-            "Hora": r.hora || r.horaIngreso, 
+            "H. Ingreso": r.hora || r.horaIngreso, 
+            "H. Salida": r.horaSalida || "Pendiente",
+            "Permanencia": r.permanencia || "---",
+            "Estado": r.estado || "Finalizado",
             "Tipo": r.tipo, 
             "Guardia": r.guardia || "No especificado", 
             "Rut": r.rut, 
@@ -154,11 +166,11 @@ export const exportarExcel = async (inicio, fin, tipoF) => {
         if (r.empresa) fila["Empresa"] = r.empresa;
         if (r.guia) fila["Guía"] = r.guia;
         if (r.rampla) fila["Rampla"] = r.rampla;
-        if (r.permanencia) fila["Permanencia"] = r.permanencia;
         return fila;
     });
 
-    const ws = XLSX.utils.json_to_sheet(datosOrdenados), wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-    XLSX.writeFile(wb, `Reporte_Prosud_${tipoF}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(datosOrdenados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Prosud");
+    XLSX.writeFile(wb, `Reporte_${tipoF}_${inicio}.xlsx`);
 };
