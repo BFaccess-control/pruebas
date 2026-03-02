@@ -38,15 +38,17 @@
             <section id="sec-transporte" class="tab-content active">
                 <form id="form-transporte" autocomplete="off">
                     <h2>Ingreso Transporte</h2>
-                    <select id="t-guardia-id" required class="select-guardia"><option value="">Cargando...</option></select>
+                    <select id="t-guardia-id" required class="select-guardia">
+                        <option value="">-- Seleccione Guardia --</option>
+                    </select>
                     
                     <div class="autocomplete-container">
                         <input type="text" id="t-rut" placeholder="RUT Conductor" required>
                         <div id="t-sugerencias" class="sugerencias-box"></div>
                     </div>
 
-                    <input type="text" id="t-nombre" placeholder="Nombre" readonly class="readonly">
-                    <input type="text" id="t-empresa" placeholder="Empresa" readonly class="readonly">
+                    <input type="text" id="t-nombre" placeholder="Nombre" readonly class="readonly" required>
+                    <input type="text" id="t-empresa" placeholder="Empresa" readonly class="readonly" required>
                     
                     <div class="autocomplete-container">
                         <input type="text" id="t-patente" placeholder="Patente (ej: ABCD-12)" required>
@@ -63,7 +65,9 @@
             <section id="sec-visitas" class="tab-content" style="display:none;">
                 <form id="form-visitas" autocomplete="off">
                     <h2>Registro Visita</h2>
-                    <select id="v-guardia-id" required class="select-guardia"><option value="">Cargando...</option></select>
+                    <select id="v-guardia-id" required class="select-guardia">
+                        <option value="">-- Seleccione Guardia --</option>
+                    </select>
                     
                     <div class="autocomplete-container">
                         <input type="text" id="v-rut" placeholder="RUT Visita" required>
@@ -93,7 +97,7 @@
                     <h2>Ingreso Abastecimiento</h2>
                     
                     <select id="a-guardia-id" required class="select-guardia">
-                        <option value="">Cargando guardias...</option>
+                        <option value="">-- Seleccione Guardia --</option>
                     </select>
 
                     <div class="autocomplete-container">
@@ -164,9 +168,9 @@
             <h3>📊 Exportar Reportes Excel</h3>
             <div style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
                 <label>Fecha Inicio:</label>
-                <input type="date" id="fecha-inicio">
+                <input type="date" id="fecha-inicio" required>
                 <label>Fecha Fin:</label>
-                <input type="date" id="fecha-fin">
+                <input type="date" id="fecha-fin" required>
                 <label>Tipo de Registro:</label>
                 <select id="filtro-tipo">
                     <option value="TODOS">Todos los registros</option>
