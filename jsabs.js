@@ -1,14 +1,12 @@
 import { db } from './jslg.js';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { activarAutocompletadoRUT, activarAutocompletadoPatente, aprenderPatente } from './jsmtr.js';
+import { collection, addDoc, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { activarAutocompletadoRUT, activarAutocompletadoPatente, aprenderPatente, guardarRegistro } from './jsmtr.js';
 
 export const inicializarAbastecimiento = () => {
     const form = document.getElementById('form-abastecimiento');
-    if(!form) {
-        console.error("No se encontró el formulario de abastecimiento");
-        return;
-    }
+    if(!form) return;
 
+    // ACTIVAR BUSCADORES EN TIEMPO REAL
     activarAutocompletadoRUT('a-rut', 'a-sugerencias-rut');
     activarAutocompletadoPatente('a-patente', 'a-sugerencias-patente');
     activarAutocompletadoPatente('a-rampla', 'a-sugerencias-rampla');
@@ -16,118 +14,23 @@ export const inicializarAbastecimiento = () => {
     form.onsubmit = async (e) => {
         e.preventDefault();
         
-        const patenteCamion = document.getElementById('a-patente').value.toUpperCase();
-        const patenteRampla = document.getElementById('a-rampla').value.toUpperCase();
-
-        const q = query(collection(db, "registros"), 
-            where("tipo", "==", "ABASTECIMIENTO"),
-            where("estado", "==", "En Recinto"),
-            where("patente", "==", patenteCamion));
+        const patCamion = document.getElementById('a-patente').value.toUpperCase();
         
-        const check = await getDocs(q);
-        if(!check.empty) {
-            alert("⚠️ El camión " + patenteCamion + " ya está en el recinto.");
-            return;
-        }
-
         const data = {
             tipo: "ABASTECIMIENTO",
             guardia: document.getElementById('a-guardia-id').value,
             rut: document.getElementById('a-rut').value,
             nombre: document.getElementById('a-nombre').value,
-            guia: document.getElementById('a-guia').value,
-            patente: patenteCamion,
-            rampla: patenteRampla,
-            horaIngreso: new Date().toLocaleTimeString('es-CL', {hour12:false}),
-            fecha: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD para el Excel
-            estado: "En Recinto",
-            horaSalida: "Pendiente",
-            permanencia: "Calculando..."
+            patente: patCamion,
+            rampla: document.getElementById('a-rampla').value.toUpperCase(),
+            estado: "En Recinto"
         };
 
-        try {
-            await addDoc(collection(db, "registros"), data);
-            await addDoc(collection(db, "ingresos"), data);
-
-            await aprenderPatente(patenteCamion);
-            if(patenteRampla) await aprenderPatente(patenteRampla);
-            
-            alert("✅ Ingreso registrado exitosamente");
-            form.reset();
-            cargarCamionesEnRecinto();
-        } catch (error) {
-            console.error("Error al guardar:", error);
-            alert("Error al registrar el ingreso.");
-        }
+        await guardarRegistro(data);
+        await aprenderPatente(patCamion);
+        
+        e.target.reset();
+        // Si tienes una función para cargar la tabla de "En Recinto", llámala aquí
+        if (typeof cargarCamionesEnRecinto === "function") cargarCamionesEnRecinto();
     };
-};
-
-export const cargarCamionesEnRecinto = async () => {
-    const tabla = document.getElementById('tabla-abastecimiento-recinto');
-    if(!tabla) return;
-
-    const q = query(collection(db, "registros"), 
-                where("tipo", "==", "ABASTECIMIENTO"), 
-                where("estado", "==", "En Recinto"));
-    
-    const snap = await getDocs(q);
-    tabla.innerHTML = "";
-
-    snap.forEach(res => {
-        const d = res.data();
-        const row = `
-            <tr>
-                <td>${d.nombre}<br><small>${d.rut}</small></td>
-                <td>C: ${d.patente}${d.rampla ? '<br>R: '+d.rampla : ''}</td>
-                <td>${d.horaIngreso}</td>
-                <td><button class="btn-salida" data-id="${res.id}" data-patente="${d.patente}" data-ingreso="${d.horaIngreso}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Salida</button></td>
-            </tr>`;
-        tabla.innerHTML += row;
-    });
-
-    document.querySelectorAll('.btn-salida').forEach(btn => {
-        btn.onclick = async (e) => {
-            const id = e.target.dataset.id;
-            const patente = e.target.dataset.patente;
-            const horaI = e.target.dataset.ingreso;
-            const horaS = new Date().toLocaleTimeString('es-CL', {hour12:false});
-            
-            // Cálculo de permanencia
-            const [h1, m1] = horaI.split(':').map(Number);
-            const [h2, m2] = horaS.split(':').map(Number);
-            const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-            const perm = `${Math.floor(diff/60)}h ${diff%60}m`;
-
-            try {
-                // 1. Actualizar tabla de control (registros)
-                await updateDoc(doc(db, "registros", id), {
-                    estado: "Finalizado",
-                    horaSalida: horaS,
-                    permanencia: perm
-                });
-
-                // 2. Actualizar histórico para el Excel (ingresos)
-                const qIng = query(collection(db, "ingresos"), 
-                    where("tipo", "==", "ABASTECIMIENTO"),
-                    where("patente", "==", patente),
-                    where("estado", "==", "En Recinto")
-                );
-                
-                const snapIng = await getDocs(qIng);
-                snapIng.forEach(async (docSnap) => {
-                    await updateDoc(doc(db, "ingresos", docSnap.id), {
-                        estado: "Finalizado",
-                        horaSalida: horaS,
-                        permanencia: perm
-                    });
-                });
-
-                alert("✅ Salida registrada: " + horaS);
-                cargarCamionesEnRecinto();
-            } catch (error) {
-                console.error("Error al marcar salida:", error);
-                alert("Error al procesar la salida.");
-            }
-        };
-    });
 };
