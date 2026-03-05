@@ -1,11 +1,15 @@
 import { db } from './jslg.js';
 import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { guardarRegistro, aprenderPatente } from './jsmtr.js';
+import { guardarRegistro, aprenderPatente, activarAutocompletadoRUT, activarAutocompletadoPatente } from './jsmtr.js';
 
 export const inicializarVisitas = () => {
     const form = document.getElementById('form-visitas');
     const checkVehiculo = document.getElementById('v-check-vehiculo');
     const inputPatente = document.getElementById('v-patente');
+
+    // ACTIVAR BUSCADORES EN TIEMPO REAL
+    activarAutocompletadoRUT('v-rut', 'v-sugerencias-rut');
+    activarAutocompletadoPatente('v-patente', 'v-sugerencias-patente');
 
     if (checkVehiculo) {
         checkVehiculo.onchange = (e) => {
@@ -29,7 +33,7 @@ export const inicializarVisitas = () => {
             };
 
             await guardarRegistro(data);
-            if (pat) await aprenderPatente(pat);
+            if (pat && pat !== "PEATON") await aprenderPatente(pat);
             
             e.target.reset();
             inputPatente.style.display = 'none';
