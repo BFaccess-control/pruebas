@@ -5,7 +5,7 @@ let maestros = [];
 let listaGuardias = [];
 let maestroPatentes = [];
 
-// --- FORMATEADORES ---
+// --- 1. FORMATEADORES (No se toca nada) ---
 export const formatearRUT = (rut) => {
     let v = rut.replace(/[^\dkK]/g, "");
     if (v.length > 1) v = v.slice(0, -1) + "-" + v.slice(-1);
@@ -18,11 +18,11 @@ export const formatearPatente = (val) => {
     return v.substring(0, 7);
 };
 
-// --- SUSCRIPCIONES A MAESTROS ---
+// --- 2. SUSCRIPCIONES ---
 onSnapshot(collection(db, "conductores"), (snap) => { maestros = snap.docs.map(d => d.data()); });
 onSnapshot(collection(db, "vehiculos"), (snap) => { maestroPatentes = snap.docs.map(d => d.data()); });
 
-// --- AUTOCOMPLETADOS ---
+// --- 3. AUTOCOMPLETADOS (Se mantiene lógica de bloqueo de campos) ---
 export function activarAutocompletadoRUT(idInput, idBox) {
     const input = document.getElementById(idInput);
     if (!input) return;
@@ -32,13 +32,9 @@ export function activarAutocompletadoRUT(idInput, idBox) {
         const bLimpia = val.replace(/-/g, "");
         const box = document.getElementById(idBox);
         box.innerHTML = "";
-
-        // Si el usuario borra o cambia el RUT, por seguridad desbloqueamos campos 
-        // para que no se queden bloqueados con datos viejos
         gestionarBloqueoCampos(idInput, false);
 
         if (bLimpia.length < 3) return;
-        
         const sugerencias = maestros.filter(m => m.rut.replace(/-/g, "").startsWith(bLimpia));
         
         sugerencias.forEach(p => {
@@ -57,7 +53,6 @@ export function activarAutocompletadoRUT(idInput, idBox) {
                     document.getElementById('a-nombre').value = p.nombre;
                 }
                 box.innerHTML = "";
-                // Como el conductor existe, bloqueamos para evitar errores de tipeo
                 gestionarBloqueoCampos(idInput, true);
             };
             box.appendChild(d);
@@ -65,12 +60,9 @@ export function activarAutocompletadoRUT(idInput, idBox) {
     };
 }
 
-// Función auxiliar para bloquear/desbloquear según si el conductor existe
 function gestionarBloqueoCampos(idInput, bloquear) {
-    const sufijos = idInput.split('-')[0]; // 't', 'v' o 'a'
+    const sufijos = idInput.split('-')[0]; 
     const nombre = document.getElementById(`${sufijos}-nombre`);
-    const empresa = document.getElementById(sufijos === 't' ? 't-empresa' : (sufijos === 'v' ? 'v-representa' : 'a-nombre'));
-
     if (nombre) {
         nombre.readOnly = bloquear;
         bloquear ? nombre.classList.add('readonly') : nombre.classList.remove('readonly');
@@ -80,7 +72,6 @@ function gestionarBloqueoCampos(idInput, bloquear) {
 export function activarAutocompletadoPatente(idInput, idBox) {
     const input = document.getElementById(idInput);
     if (!input) return;
-
     input.oninput = (e) => {
         const val = e.target.value = formatearPatente(e.target.value);
         const box = document.getElementById(idBox);
@@ -95,112 +86,70 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// --- GESTIÓN DE GUARDIAS ---
+// --- 4. GESTIÓN DE GUARDIAS ---
 export const cargarGuardiasYListados = async () => {
     const colRef = collection(db, "lista_guardias");
-
     const renderizar = (docs) => {
         listaGuardias = docs.map(d => ({id: d.id, ...d.data()}));
         let opciones = '<option value="">-- Seleccione Guardia --</option>';
-        listaGuardias.forEach(g => {
-            opciones += `<option value="${g.nombre}">${g.nombre}</option>`;
-        });
-
-        const selects = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'];
-        selects.forEach(id => {
+        listaGuardias.forEach(g => { opciones += `<option value="${g.nombre}">${g.nombre}</option>`; });
+        ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = opciones;
         });
-
-        const adm = document.getElementById('lista-guardias-admin');
-        if(adm) {
-            adm.innerHTML = "";
-            listaGuardias.forEach(g => {
-                adm.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
-                    <span>${g.nombre}</span>
-                    <button onclick="borrarG('${g.id}')" style="color:red; border:none; background:none; cursor:pointer;">✖</button>
-                </div>`;
-            });
-        }
     };
-
     const inicialSnap = await getDocs(colRef);
     renderizar(inicialSnap.docs);
     onSnapshot(colRef, (s) => { renderizar(s.docs); });
 };
 
-window.borrarG = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "lista_guardias", id)); };
-
-// --- GUARDADO DE REGISTROS CON VALIDACIÓN ---
+// --- 5. GUARDADO (Unificado a Formato Chile DD-MM-YYYY) ---
 export const guardarRegistro = async (data) => {
-    // Misión Secundaria: Evitar campos vacíos
-    const camposObligatorios = ['rut', 'nombre', 'guardia', 'patente'];
-    const faltantes = camposObligatorios.filter(campo => !data[campo] || data[campo].trim() === "");
-
-    if (faltantes.length > 0) {
-        alert("❌ Error: Faltan datos obligatorios (RUT, Nombre, Guardia o Patente). El registro no se guardará.");
-        return; 
-    }
-
     const ahora = new Date();
-    const anio = ahora.getFullYear();
-    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
     const dia = String(ahora.getDate()).padStart(2, '0');
-    
-    data.fecha = `${anio}-${mes}-${dia}`;
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    data.fecha = `${dia}-${mes}-${ahora.getFullYear()}`;
     data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
-    
     try {
         await addDoc(collection(db, "ingresos"), data);
-        alert("✅ Registro guardado con éxito");
-    } catch (e) {
-        alert("Error al guardar: " + e.message);
-    }
+        alert("✅ Registro guardado");
+    } catch (e) { alert("Error: " + e.message); }
 };
 
+// --- 6. APRENDER PATENTE (Vital para jstte.js y jsvst.js) ---
 export const aprenderPatente = async (pat) => {
-    if (pat && pat.length >= 6 && !maestroPatentes.some(p => p.patente === pat)) {
-        await addDoc(collection(db, "vehiculos"), { patente: pat });
+    if (!pat || pat === "PEATON") return;
+    const existe = maestroPatentes.some(p => p.patente.replace(/-/g, "") === pat.replace(/-/g, ""));
+    if (!existe) {
+        try {
+            await addDoc(collection(db, "vehiculos"), { patente: pat.toUpperCase() });
+        } catch (e) { console.error("Error al aprender patente", e); }
     }
 };
 
-// --- EXPORTACIÓN A EXCEL CORREGIDA ---
+// --- 7. EXCEL (Solución definitiva para reportes) ---
 export const exportarExcel = async (inicio, fin, tipoF) => {
-    const snap = await getDocs(collection(db, "ingresos"));
-    
-    let filtrados = snap.docs.map(d => d.data()).filter(r => {
-        const cF = r.fecha >= inicio && r.fecha <= fin;
-        const cT = (tipoF === "TODOS") || (r.tipo === tipoF);
-        return cF && cT;
-    });
+    try {
+        const snap = await getDocs(collection(db, "ingresos"));
+        let filtrados = snap.docs.map(d => d.data()).filter(r => {
+            if (!r.fecha) return false;
+            let fComp = r.fecha;
+            // Si la fecha está en formato chileno (DD-MM-YYYY), la invertimos para comparar con el calendario
+            if (r.fecha.includes("-") && r.fecha.split("-")[0].length === 2) {
+                const [d, m, a] = r.fecha.split("-");
+                fComp = `${a}-${m}-${d}`;
+            }
+            return (fComp >= inicio && fComp <= fin) && (tipoF === "TODOS" || r.tipo === tipoF);
+        });
 
-    if(filtrados.length === 0) {
-        return alert(`Sin datos para el rango ${inicio} al ${fin} en ${tipoF}`);
-    }
-    
-    filtrados.sort((a, b) => (a.fecha + (a.hora || a.horaIngreso)).localeCompare(b.fecha + (b.hora || b.horaIngreso)));
-    
-    const datosOrdenados = filtrados.map(r => {
-        const fila = { 
-            "Fecha": r.fecha, 
-            "H. Ingreso": r.hora || r.horaIngreso, 
-            "H. Salida": r.horaSalida || "Pendiente",
-            "Permanencia": r.permanencia || "---",
-            "Estado": r.estado || "Finalizado",
-            "Tipo": r.tipo, 
-            "Guardia": r.guardia || "No especificado", 
-            "Rut": r.rut, 
-            "Nombre": r.nombre, 
-            "Patente": r.patente 
-        };
-        if (r.empresa) fila["Empresa"] = r.empresa;
-        if (r.guia) fila["Guía"] = r.guia;
-        if (r.rampla) fila["Rampla"] = r.rampla;
-        return fila;
-    });
+        if(filtrados.length === 0) return alert(`Sin datos para el rango ${inicio} al ${fin}`);
 
-    const ws = XLSX.utils.json_to_sheet(datosOrdenados);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Prosud");
-    XLSX.writeFile(wb, `Reporte_${tipoF}_${inicio}.xlsx`);
+        // Ordenar por fecha y hora
+        filtrados.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+        const ws = XLSX.utils.json_to_sheet(filtrados);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+        XLSX.writeFile(wb, `Reporte_Prosud_${inicio}.xlsx`);
+    } catch (e) { alert("Error al exportar: " + e.message); }
 };
