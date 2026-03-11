@@ -47,13 +47,7 @@ export function activarAutocompletadoRUT(idInput, idSugerencias) {
                 const empresaField = document.getElementById(`${prefijo}-empresa`) || document.getElementById(`${prefijo}-representa`);
                 
                 if (nombreField) nombreField.value = m.nombre;
-                if (empresaField) {
-                    if (empresaField.tagName === 'SELECT') {
-                        empresaField.value = m.empresa || "";
-                    } else {
-                        empresaField.value = m.empresa || "";
-                    }
-                }
+                if (empresaField) empresaField.value = m.empresa || "";
             };
             box.appendChild(div);
         });
@@ -125,8 +119,9 @@ export const aprenderPatente = async (patente) => {
     }
 };
 
-// --- 6. FUNCIONES PARA ABASTECIMIENTO (Misión actual) ---
-export async function buscarConductorPorRut(rut) {
+// --- 6. FUNCIONES PARA ABASTECIMIENTO (Aquí está la solución al error) ---
+
+export async function buscarConductorPorRut(rut) { // <--- REVISA QUE TENGA EL 'export'
     const q = query(collection(db, "conductores"), where("rut", "==", rut));
     const snap = await getDocs(q);
     if (!snap.empty) {
@@ -135,7 +130,7 @@ export async function buscarConductorPorRut(rut) {
     return null;
 }
 
-export async function aprenderConductor(rut, nombre, empresa) {
+export async function aprenderConductor(rut, nombre, empresa) { // <--- REVISA QUE TENGA EL 'export'
     if (!rut) return;
     const q = query(collection(db, "conductores"), where("rut", "==", rut));
     const snap = await getDocs(q);
