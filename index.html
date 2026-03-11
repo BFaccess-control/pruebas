@@ -20,7 +20,9 @@
     <div id="app-body" style="display:none;">
         <header>
             <h1>Control Prosud</h1>
-            <button id="btn-logout" class="logout-link">Cerrar Sesión</button>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="btn-logout" class="logout-link">Cerrar Sesión</button>
+            </div>
         </header>
 
         <div class="tabs">
@@ -28,142 +30,113 @@
             <button class="tab-btn" id="btn-tab-visitas">🧍 Visitas</button>
             <button class="tab-btn" id="btn-tab-abastecimiento">📦 Abastecimiento</button>
         </div>
-        
-        <main>
-            <div id="admin-panel" style="display:none; margin-bottom:15px; gap:10px; display:flex; flex-direction:column;">
-                <button id="btn-abrir-reportes" class="btn-new">📊 Reportes Excel</button>
-                <button id="btn-gestionar-guardias" class="btn-new" style="display:none;">👥 Gestionar Guardias</button>
-            </div>
 
+        <div id="admin-panel" class="admin-controls" style="display: none; padding: 15px; background: #eef2f3; justify-content: center; gap: 15px;">
+            <button id="btn-abrir-reportes" class="btn-save" style="background-color: #28a745;">📊 Reportes Excel</button>
+            <button id="btn-gestionar-guardias" class="btn-save" style="display: none;">👥 Gestionar Guardias</button>
+            <button id="btn-abrir-modal" class="btn-save" style="display: none; background-color: #17a2b8;">📝 Maestro Conductor</button>
+        </div>
+
+        <main class="container">
             <section id="sec-transporte" class="tab-content active">
-                <form id="form-transporte" autocomplete="off">
-                    <h2>Ingreso Transporte</h2>
-                    <select id="t-guardia-id" required class="select-guardia">
-                        <option value="">-- Seleccione Guardia --</option>
-                    </select>
-                    
-                    <div class="autocomplete-container">
-                        <input type="text" id="t-rut" placeholder="RUT Conductor" required>
-                        <div id="t-sugerencias" class="sugerencias-box"></div>
-                    </div>
-
-                    <input type="text" id="t-nombre" placeholder="Nombre" readonly class="readonly" required>
-                    <input type="text" id="t-empresa" placeholder="Empresa" readonly class="readonly" required>
-                    
-                    <div class="autocomplete-container">
-                        <input type="text" id="t-patente" placeholder="Patente (ej: ABCD-12)" required>
-                        <div id="p-sugerencias" class="sugerencias-box"></div>
-                    </div>
-
-                    <div class="button-group">
-                        <button type="submit" class="btn-save">Guardar</button>
-                        <button type="button" id="btn-abrir-modal" class="btn-new">Agregar nuevo conductor</button>
-                    </div>
-                </form>
+                <div class="card">
+                    <h3>Registro de Transporte</h3>
+                    <form id="form-transporte">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <input type="text" id="t-rut" placeholder="RUT Conductor" required>
+                            <select id="t-guardia-id" required><option value="">Guardia...</option></select>
+                        </div>
+                        <input type="text" id="t-nombre" placeholder="Nombre Completo" required>
+                        <input type="text" id="t-empresa" placeholder="Empresa" required>
+                        <input type="text" id="t-patente" placeholder="Patente" required maxlength="7">
+                        <button type="submit" class="btn-save">Registrar Ingreso</button>
+                    </form>
+                </div>
             </section>
 
             <section id="sec-visitas" class="tab-content" style="display:none;">
-                <form id="form-visitas" autocomplete="off">
-                    <h2>Registro Visita</h2>
-                    <select id="v-guardia-id" required class="select-guardia">
-                        <option value="">-- Seleccione Guardia --</option>
-                    </select>
-                    
-                    <div class="autocomplete-container">
+                <div class="card">
+                    <h3>Registro de Visitas</h3>
+                    <form id="form-visitas">
                         <input type="text" id="v-rut" placeholder="RUT Visita" required>
-                        <div id="v-sugerencias-rut" class="sugerencias-box"></div>
-                    </div>
-
-                    <input type="text" id="v-nombre" placeholder="Nombre Completo" required>
-                    <input type="text" id="v-representa" placeholder="Empresa a la que representa" required>
-                    <input type="text" id="v-motivo" placeholder="Motivo de la visita" required>
-                    
-                    <div class="toggle-container">
-                        <span>¿Viene en vehículo?</span>
-                        <input type="checkbox" id="v-check-vehiculo">
-                    </div>
-
-                    <div class="autocomplete-container">
-                        <input type="text" id="v-patente" placeholder="Patente" style="display:none;">
-                        <div id="v-sugerencias-patente" class="sugerencias-box"></div>
-                    </div>
-
-                    <button type="submit" class="btn-save">Guardar Visita</button>
-                </form>
+                        <input type="text" id="v-nombre" placeholder="Nombre Completo" required>
+                        <input type="text" id="v-representa" placeholder="Empresa que representa" required>
+                        <input type="text" id="v-motivo" placeholder="Motivo de visita" required>
+                        <div class="toggle-container">
+                            <span>¿Ingresa con vehículo?</span>
+                            <input type="checkbox" id="v-check-vehiculo">
+                        </div>
+                        <input type="text" id="v-patente" placeholder="Patente Vehículo" style="display:none;" maxlength="7">
+                        <select id="v-guardia-id" required><option value="">Guardia...</option></select>
+                        <button type="submit" class="btn-save">Registrar Visita</button>
+                    </form>
+                </div>
             </section>
 
-            <section id="sec-abastecimiento" style="display:none;">
-                <form id="form-abastecimiento" class="registro-form">
-                    <h2>Ingreso Abastecimiento</h2>
-                    
-                    <select id="a-guardia-id" required class="select-guardia">
-                        <option value="">-- Seleccione Guardia --</option>
-                    </select>
+            <section id="sec-abastecimiento" class="tab-content" style="display:none;">
+                <div class="card">
+                    <h3>Ingreso Abastecimiento</h3>
+                    <form id="form-abastecimiento">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div class="autocomplete-container">
+                                <input type="text" id="a-rut" placeholder="RUT Conductor" required autocomplete="off">
+                                <div id="a-sugerencias-rut" class="sugerencias-box"></div>
+                            </div>
+                            <select id="a-guardia-id" required><option value="">Guardia...</option></select>
+                        </div>
+                        
+                        <input type="text" id="a-nombre" placeholder="Nombre Completo" required autocomplete="off">
 
-                    <div class="autocomplete-container">
-                        <input type="text" id="a-rut" placeholder="RUT Conductor" required autocomplete="off">
-                        <div id="a-sugerencias-rut" class="sugerencias-box"></div>
+                        <select id="a-empresa" required style="width: 100%; padding: 10px; margin-top: 10px; border-radius: 4px; border: 1px solid #ccc;">
+                            <option value="">-- Seleccione Empresa --</option>
+                            <option value="PROSUD">PROSUD</option>
+                            <option value="TRANS-LOG">TRANS-LOG</option>
+                            <option value="EXTERNO">EXTERNO / OTRO</option>
+                        </select>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <input type="text" id="a-patente" placeholder="Patente Camión" required maxlength="7">
+                            <input type="text" id="a-rampla" placeholder="Patente Rampla" maxlength="7">
+                        </div>
+                        <input type="text" id="a-guia" placeholder="Número de Guía" required style="margin-top: 10px;">
+                        <button type="submit" class="btn-save" style="margin-top: 15px;">Registrar Ingreso</button>
+                    </form>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Camiones en Recinto</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <thead>
+                                <tr style="background: var(--azul-oscuro); color: white;">
+                                    <th style="padding: 10px;">Conductor</th>
+                                    <th>Vehículo</th>
+                                    <th>Ingreso</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-abastecimiento-recinto" style="text-align: center;">
+                                </tbody>
+                        </table>
                     </div>
-
-                    <input type="text" id="a-nombre" placeholder="Nombre Completo" required autocomplete="off">
-
-                    <input type="text" id="a-guia" placeholder="Número de Guía" required>
-
-                    <div class="autocomplete-container">
-                        <input type="text" id="a-patente" placeholder="Patente Camión (ABCD-12)" required autocomplete="off">
-                        <div id="a-sugerencias-patente" class="sugerencias-box"></div>
-                    </div>
-
-                    <div class="autocomplete-container">
-                        <input type="text" id="a-rampla" placeholder="Patente Rampla" autocomplete="off">
-                        <div id="a-sugerencias-rampla" class="sugerencias-box"></div>
-                    </div>
-
-                    <button type="submit" class="btn-save" style="width: 100%; margin-top: 10px;">Registrar Ingreso</button>
-                </form>
-
-                <div class="recinto-container" style="margin-top: 30px;">
-                    <h3 style="color: #2c3e50; margin-bottom: 10px; text-align: center;">🚚 Camiones en Recinto</h3>
-                    <table class="tabla-gestion">
-                        <thead>
-                            <tr>
-                                <th>Conductor / RUT</th>
-                                <th>Patentes (C/R)</th>
-                                <th>Ingreso</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-abastecimiento-recinto"></tbody>
-                    </table>
                 </div>
             </section>
         </main>
     </div>
 
-    <div id="modal-gestion-guardias" class="modal">
-        <div class="modal-content">
-            <h3>👥 Lista de Guardias</h3>
-            <div id="lista-guardias-admin" style="max-height: 180px; overflow-y: auto; border: 1px solid #ddd; margin-bottom: 10px;"></div>
-            <input type="text" id="nuevo-guardia-nombre" placeholder="Nombre guardia">
-            <button id="btn-add-guardia" class="btn-save">Agregar</button>
-            <button type="button" id="btn-cerrar-gestion" class="btn-close-text">Cerrar</button>
+    <div id="modal-confirmar-salida" class="modal">
+        <div class="modal-content" style="max-width: 400px; border-top: 5px solid #d9534f;">
+            <h3 style="color: #d9534f;">⚠️ Confirmar Salida</h3>
+            <div id="detalle-salida-camion" style="text-align: left; background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #eee; line-height: 1.6;"></div>
+            <p style="margin-bottom: 20px; font-weight: bold;">¿Estás seguro que deseas dar salida a este camión?</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="btn-confirmar-salida-final" class="btn-save" style="background-color: #d9534f;">SÍ, CONFIRMAR</button>
+                <button id="btn-cancelar-salida" class="btn-cancel" style="background-color: #6c757d;">CANCELAR</button>
+            </div>
         </div>
     </div>
 
-    <div id="modal-conductor" class="modal">
-        <div class="modal-content">
-            <h3>Registrar en Maestro</h3>
-            <form id="form-maestro">
-                <input type="text" id="m-rut" placeholder="RUT" required>
-                <input type="text" id="m-nombre" placeholder="Nombre" required>
-                <input type="text" id="m-empresa" placeholder="Empresa" required>
-                <button type="submit" class="btn-save">Guardar</button>
-                <button type="button" id="btn-cerrar-modal" class="btn-close-text">Cancelar</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-reportes" class="modal" style="display: none;">
+    <div id="modal-reportes" class="modal">
         <div class="modal-content">
             <h3>📊 Exportar Reportes Excel</h3>
             <div style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
@@ -171,15 +144,14 @@
                 <input type="date" id="fecha-inicio" required>
                 <label>Fecha Fin:</label>
                 <input type="date" id="fecha-fin" required>
-                <label>Tipo de Registro:</label>
+                <label>Tipo:</label>
                 <select id="filtro-tipo">
-                    <option value="TODOS">Todos los registros</option>
+                    <option value="TODOS">Todos</option>
                     <option value="TRANSPORTE">Transporte</option>
                     <option value="VISITAS">Visitas</option>
-                    <option value="ABASTECIMIENTO">Abastecimiento</option> 
+                    <option value="ABASTECIMIENTO">Abastecimiento</option>
                 </select>
             </div>
-            
             <div class="modal-footer" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
                 <button id="btn-exportar" class="btn-save">Generar Excel</button>
                 <button id="btn-cerrar-reportes" class="btn-cancel">Cerrar</button>
@@ -187,21 +159,6 @@
         </div>
     </div>
 
-   <script type="module" src="jsapp.js"></script>
-    
-    <div id="modal-confirmar-salida" class="modal">
-    <div class="modal-content" style="max-width: 400px; border-top: 5px solid #d9534f;">
-        <h3 style="color: #d9534f;">⚠️ Confirmar Salida</h3>
-        <div id="detalle-salida-camion" style="text-align: left; background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #eee; line-height: 1.6;">
-            </div>
-        <p style="margin-bottom: 20px; font-weight: bold;">¿Estás seguro que deseas dar salida a este camión?</p>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-            <button id="btn-confirmar-salida-final" class="btn-save" style="background-color: #d9534f;">SÍ, CONFIRMAR</button>
-            <button id="btn-cancelar-salida" class="btn-cancel" style="background-color: #6c757d;">CANCELAR</button>
-        </div>
-    </div>
-</div>
-    
+    <script type="module" src="jsapp.js"></script>
 </body>
 </html>
-
