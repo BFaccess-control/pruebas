@@ -5,7 +5,7 @@ let maestros = [];
 let listaGuardias = [];
 let maestroPatentes = [];
 
-// --- 1. FORMATEADORES (Mantenidos intactos) ---
+// --- 1. FORMATEADORES ---
 export const formatearRUT = (rut) => {
     let v = rut.replace(/[^\dkK]/g, "");
     if (v.length > 1) v = v.slice(0, -1) + "-" + v.slice(-1);
@@ -42,13 +42,18 @@ export function activarAutocompletadoRUT(idInput, idSugerencias) {
             div.onclick = () => {
                 input.value = m.rut;
                 box.innerHTML = "";
-                // Rellenar campos hermanos según el prefijo del ID (t-, v-, a-)
                 const prefijo = idInput.split('-')[0];
                 const nombreField = document.getElementById(`${prefijo}-nombre`);
                 const empresaField = document.getElementById(`${prefijo}-empresa`) || document.getElementById(`${prefijo}-representa`);
                 
                 if (nombreField) nombreField.value = m.nombre;
-                if (empresaField) empresaField.value = m.empresa;
+                if (empresaField) {
+                    if (empresaField.tagName === 'SELECT') {
+                        empresaField.value = m.empresa || "";
+                    } else {
+                        empresaField.value = m.empresa || "";
+                    }
+                }
             };
             box.appendChild(div);
         });
@@ -82,7 +87,7 @@ export function activarAutocompletadoPatente(idInput, idSugerencias) {
 
 // --- 4. CARGA DE GUARDIAS ---
 export const cargarGuardiasYListados = () => {
-    const combos = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id', 'g-guardia-id'];
+    const combos = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'];
     onSnapshot(collection(db, "guardias"), (snap) => {
         listaGuardias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         combos.forEach(id => {
@@ -120,7 +125,7 @@ export const aprenderPatente = async (patente) => {
     }
 };
 
-// --- 6. NUEVAS FUNCIONES DE CONDUCTORES (Integradas) ---
+// --- 6. FUNCIONES PARA ABASTECIMIENTO (Misión actual) ---
 export async function buscarConductorPorRut(rut) {
     const q = query(collection(db, "conductores"), where("rut", "==", rut));
     const snap = await getDocs(q);
@@ -131,6 +136,7 @@ export async function buscarConductorPorRut(rut) {
 }
 
 export async function aprenderConductor(rut, nombre, empresa) {
+    if (!rut) return;
     const q = query(collection(db, "conductores"), where("rut", "==", rut));
     const snap = await getDocs(q);
     if (snap.empty) {
@@ -160,7 +166,7 @@ export const exportarExcel = async (inicio, fin, tipoF) => {
         });
 
         if(filtrados.length === 0) return alert(`Sin datos para el rango ${inicio} al ${fin}`);
-
+        
         filtrados.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
 
         const ws = XLSX.utils.json_to_sheet(filtrados);
