@@ -2,7 +2,7 @@ import { db } from './jslg.js';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { guardarRegistro, aprenderPatente } from './jsmtr.js';
 
-let datosPendienteSalida = null; // Variable para guardar datos temporalmente
+let datosPendienteSalida = null; 
 
 export const inicializarAbastecimiento = () => {
     const form = document.getElementById('form-abastecimiento');
@@ -10,6 +10,9 @@ export const inicializarAbastecimiento = () => {
 
     form.onsubmit = async (e) => {
         e.preventDefault();
+        
+        // --- PASO 1: CAPTURA DE TIEMPO EXACTO ---
+        const ahora = new Date(); 
         const patCamion = document.getElementById('a-patente').value.toUpperCase();
         const patRampla = document.getElementById('a-rampla').value.toUpperCase();
         
@@ -22,19 +25,25 @@ export const inicializarAbastecimiento = () => {
             patente: patCamion,
             rampla: patRampla,
             estado: "En Recinto",
-            hora: new Date().toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' })
+            // Campos mejorados para Supply
+            fecha: ahora.toLocaleDateString('es-CL'), 
+            hora: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+            timestampIngreso: ahora.getTime() // Milisegundos para cálculo matemático real
         };
 
-        await guardarRegistro(data);
-        await addDoc(collection(db, "registros"), data);
-        await aprenderPatente(patCamion);
-        if(patRampla) await aprenderPatente(patRampla);
-        
-        e.target.reset();
-        alert("✅ Ingreso registrado");
+        try {
+            await guardarRegistro(data);
+            await addDoc(collection(db, "registros"), data);
+            await aprenderPatente(patCamion);
+            if(patRampla) await aprenderPatente(patRampla);
+            
+            e.target.reset();
+            alert("✅ Ingreso registrado con éxito");
+        } catch (error) {
+            alert("Error al registrar: " + error.message);
+        }
     };
 
-    // Configurar botones del modal de validación
     document.getElementById('btn-cancelar-salida').onclick = () => {
         document.getElementById('modal-confirmar-salida').style.display = 'none';
     };
@@ -61,14 +70,16 @@ export const cargarCamionesEnRecinto = () => {
             fila.innerHTML = `
                 <td><strong>${res.nombre}</strong><br><small>${res.rut}</small></td>
                 <td><strong>C:</strong> ${res.patente}<br><strong>R:</strong> ${res.rampla || '---'}</td>
-                <td>${res.hora || '---'}</td>
+                <td>${res.fecha}<br>${res.hora}</td>
                 <td>
                     <button class="btn-salida-rojo" 
                             data-id="${docSnap.id}" 
                             data-patente="${res.patente}" 
                             data-nombre="${res.nombre}"
                             data-guia="${res.guia || 'N/A'}"
-                            data-hora="${res.hora}">
+                            data-hora="${res.hora}"
+                            data-fecha="${res.fecha}"
+                            data-timestamp-ingreso="${res.timestampIngreso}"> 
                         MARCAR SALIDA
                     </button>
                 </td>
@@ -82,45 +93,55 @@ export const cargarCamionesEnRecinto = () => {
     });
 };
 
-// --- NUEVA INSTANCIA DE VALIDACIÓN ---
 function mostrarValidacionSalida(datos) {
     datosPendienteSalida = datos;
     const infoDiv = document.getElementById('detalle-salida-camion');
     
-    // Mostramos los datos para que el guardia verifique
     infoDiv.innerHTML = `
         <strong>Conductor:</strong> ${datos.nombre}<br>
         <strong>Patente Camión:</strong> ${datos.patente}<br>
         <strong>Número de Guía:</strong> ${datos.guia}<br>
-        <strong>Hora de Ingreso:</strong> ${datos.hora}
+        <strong>Ingreso:</strong> ${datos.fecha} a las ${datos.hora}
     `;
     
     document.getElementById('modal-confirmar-salida').style.display = 'flex';
 }
 
 async function ejecutarSalida(datos) {
-    const { id, patente, hora } = datos;
-    const horaS = new Date().toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const { id, patente, timestampIngreso } = datos;
+    const ahoraSalida = new Date();
+    const horaS = ahoraSalida.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const fechaS = ahoraSalida.toLocaleDateString('es-CL');
     
-    // Cálculo de permanencia
+    // NUEVO CÁLCULO DE PERMANENCIA BASADO EN TIMESTAMP
     let perm = "---";
-    if (hora && hora.includes(':')) {
-        const [h1, m1] = hora.split(':').map(Number);
-        const [h2, m2] = horaS.split(':').map(Number);
-        const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-        const totalMinutos = diff < 0 ? diff + 1440 : diff;
-        perm = `${Math.floor(totalMinutos/60)}h ${totalMinutos%60}m`;
+    if (timestampIngreso && timestampIngreso !== "undefined") {
+        const msDiferencia = ahoraSalida.getTime() - Number(timestampIngreso);
+        const minutosTotales = Math.floor(msDiferencia / (1000 * 60));
+        const horas = Math.floor(minutosTotales / 60);
+        const minutos = minutosTotales % 60;
+        perm = `${horas}h ${minutos}m`;
     }
 
     try {
-        await updateDoc(doc(db, "registros", id), { estado: "Finalizado", horaSalida: horaS, permanencia: perm });
+        const dataUpdate = { 
+            estado: "Finalizado", 
+            fechaSalida: fechaS,
+            horaSalida: horaS, 
+            permanencia: perm 
+        };
+
+        await updateDoc(doc(db, "registros", id), dataUpdate);
         
         const qIng = query(collection(db, "ingresos"), where("tipo", "==", "ABASTECIMIENTO"), where("patente", "==", patente), where("estado", "==", "En Recinto"));
         const snapIng = await getDocs(qIng);
         snapIng.forEach(async (d) => {
-            await updateDoc(doc(db, "ingresos", d.id), { estado: "Finalizado", horaSalida: horaS, permanencia: perm });
+            await updateDoc(doc(db, "ingresos", d.id), dataUpdate);
         });
 
-        alert("✅ Salida confirmada para: " + patente);
-    } catch (e) { alert("Error al procesar salida"); }
+        alert(`✅ Salida confirmada. Permanencia total: ${perm}`);
+    } catch (e) { 
+        console.error(e);
+        alert("Error al procesar salida"); 
+    }
 }
