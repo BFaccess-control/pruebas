@@ -5,7 +5,7 @@ let maestros = [];
 let listaGuardias = [];
 let maestroPatentes = [];
 
-// --- 1. FORMATEADORES ---
+// --- 1. FORMATEADORES (No se toca nada) ---
 export const formatearRUT = (rut) => {
     let v = rut.replace(/[^\dkK]/g, "");
     if (v.length > 1) v = v.slice(0, -1) + "-" + v.slice(-1);
@@ -22,137 +22,119 @@ export const formatearPatente = (val) => {
 onSnapshot(collection(db, "conductores"), (snap) => { maestros = snap.docs.map(d => d.data()); });
 onSnapshot(collection(db, "vehiculos"), (snap) => { maestroPatentes = snap.docs.map(d => d.data()); });
 
-// --- 3. AUTOCOMPLETADOS ---
-export function activarAutocompletadoRUT(idInput, idSugerencias) {
+// --- 3. AUTOCOMPLETADOS (Se mantiene lógica de bloqueo de campos) ---
+export function activarAutocompletadoRUT(idInput, idBox) {
     const input = document.getElementById(idInput);
-    const box = document.getElementById(idSugerencias);
-    if (!input || !box) return;
-
+    if (!input) return;
+    
     input.oninput = (e) => {
-        const val = formatearRUT(e.target.value);
-        e.target.value = val;
+        const val = e.target.value = formatearRUT(e.target.value);
+        const bLimpia = val.replace(/-/g, "");
+        const box = document.getElementById(idBox);
         box.innerHTML = "";
-        if (val.length < 3) return;
+        gestionarBloqueoCampos(idInput, false);
 
-        const coinciden = maestros.filter(m => m.rut.includes(val));
-        coinciden.forEach(m => {
-            const div = document.createElement("div");
-            div.className = "sugerencia-item";
-            div.innerText = `${m.rut} - ${m.nombre}`;
-            div.onclick = () => {
-                input.value = m.rut;
+        if (bLimpia.length < 3) return;
+        const sugerencias = maestros.filter(m => m.rut.replace(/-/g, "").startsWith(bLimpia));
+        
+        sugerencias.forEach(p => {
+            const d = document.createElement('div'); 
+            d.className="sugerencia-item"; 
+            d.textContent=`${p.rut} | ${p.nombre}`;
+            d.onclick = () => {
+                input.value = p.rut;
+                if(idInput === 't-rut') {
+                    document.getElementById('t-nombre').value = p.nombre;
+                    document.getElementById('t-empresa').value = p.empresa;
+                } else if(idInput === 'v-rut') {
+                    document.getElementById('v-nombre').value = p.nombre;
+                    document.getElementById('v-representa').value = p.empresa || "";
+                } else if(idInput === 'a-rut') {
+                    document.getElementById('a-nombre').value = p.nombre;
+                }
                 box.innerHTML = "";
-                const prefijo = idInput.split('-')[0];
-                const nombreField = document.getElementById(`${prefijo}-nombre`);
-                const empresaField = document.getElementById(`${prefijo}-empresa`) || document.getElementById(`${prefijo}-representa`);
-                
-                if (nombreField) nombreField.value = m.nombre;
-                if (empresaField) empresaField.value = m.empresa || "";
+                gestionarBloqueoCampos(idInput, true);
             };
-            box.appendChild(div);
+            box.appendChild(d);
         });
     };
-    document.addEventListener("click", () => box.innerHTML = "");
 }
 
-export function activarAutocompletadoPatente(idInput, idSugerencias) {
-    const input = document.getElementById(idInput);
-    const box = document.getElementById(idSugerencias);
-    if (!input || !box) return;
+function gestionarBloqueoCampos(idInput, bloquear) {
+    const sufijos = idInput.split('-')[0]; 
+    const nombre = document.getElementById(`${sufijos}-nombre`);
+    if (nombre) {
+        nombre.readOnly = bloquear;
+        bloquear ? nombre.classList.add('readonly') : nombre.classList.remove('readonly');
+    }
+}
 
+export function activarAutocompletadoPatente(idInput, idBox) {
+    const input = document.getElementById(idInput);
+    if (!input) return;
     input.oninput = (e) => {
-        const val = e.target.value.toUpperCase();
+        const val = e.target.value = formatearPatente(e.target.value);
+        const box = document.getElementById(idBox);
         box.innerHTML = "";
         if (val.length < 2) return;
-
-        const coinciden = maestroPatentes.filter(p => p.patente.includes(val));
-        coinciden.forEach(p => {
-            const div = document.createElement("div");
-            div.className = "sugerencia-item";
-            div.innerText = p.patente;
-            div.onclick = () => {
-                input.value = p.patente;
-                box.innerHTML = "";
-            };
-            box.appendChild(div);
+        const bLimpia = val.replace(/-/g, "");
+        maestroPatentes.filter(p => p.patente.replace(/-/g, "").startsWith(bLimpia)).forEach(item => {
+            const d = document.createElement('div'); d.className="sugerencia-item"; d.textContent=item.patente;
+            d.onclick = () => { input.value = item.patente; box.innerHTML=""; };
+            box.appendChild(d);
         });
     };
 }
 
-// --- 4. CARGA DE GUARDIAS ---
-export const cargarGuardiasYListados = () => {
-    const combos = ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'];
-    onSnapshot(collection(db, "guardias"), (snap) => {
-        listaGuardias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        combos.forEach(id => {
+// --- 4. GESTIÓN DE GUARDIAS ---
+export const cargarGuardiasYListados = async () => {
+    const colRef = collection(db, "lista_guardias");
+    const renderizar = (docs) => {
+        listaGuardias = docs.map(d => ({id: d.id, ...d.data()}));
+        let opciones = '<option value="">-- Seleccione Guardia --</option>';
+        listaGuardias.forEach(g => { opciones += `<option value="${g.nombre}">${g.nombre}</option>`; });
+        ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) {
-                el.innerHTML = '<option value="">Seleccione Guardia</option>';
-                listaGuardias.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g.nombre;
-                    opt.innerText = g.nombre;
-                    el.appendChild(opt);
-                });
-            }
+            if (el) el.innerHTML = opciones;
         });
-    });
+    };
+    const inicialSnap = await getDocs(colRef);
+    renderizar(inicialSnap.docs);
+    onSnapshot(colRef, (s) => { renderizar(s.docs); });
 };
 
-// --- 5. REGISTROS ---
+// --- 5. GUARDADO (Unificado a Formato Chile DD-MM-YYYY) ---
 export const guardarRegistro = async (data) => {
+    const ahora = new Date();
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    data.fecha = `${dia}-${mes}-${ahora.getFullYear()}`;
+    data.hora = ahora.toLocaleTimeString('es-CL', { hour12: false });
     try {
-        const hoy = new Date();
-        const fechaChile = hoy.toLocaleDateString('es-CL').replace(/\//g, "-");
-        await addDoc(collection(db, "ingresos"), { ...data, fecha: fechaChile });
-    } catch (e) { console.error("Error al guardar registro", e); }
+        await addDoc(collection(db, "ingresos"), data);
+        alert("✅ Registro guardado");
+    } catch (e) { alert("Error: " + e.message); }
 };
 
-export const aprenderPatente = async (patente) => {
-    if (!patente) return;
-    const pat = patente.toUpperCase();
+// --- 6. APRENDER PATENTE (Vital para jstte.js y jsvst.js) ---
+export const aprenderPatente = async (pat) => {
+    if (!pat || pat === "PEATON") return;
     const existe = maestroPatentes.some(p => p.patente.replace(/-/g, "") === pat.replace(/-/g, ""));
     if (!existe) {
         try {
-            await addDoc(collection(db, "vehiculos"), { patente: pat });
+            await addDoc(collection(db, "vehiculos"), { patente: pat.toUpperCase() });
         } catch (e) { console.error("Error al aprender patente", e); }
     }
 };
 
-// --- 6. FUNCIONES PARA ABASTECIMIENTO (Aquí está la solución al error) ---
-
-export async function buscarConductorPorRut(rut) { // <--- REVISA QUE TENGA EL 'export'
-    const q = query(collection(db, "conductores"), where("rut", "==", rut));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-        return snap.docs[0].data();
-    }
-    return null;
-}
-
-export async function aprenderConductor(rut, nombre, empresa) { // <--- REVISA QUE TENGA EL 'export'
-    if (!rut) return;
-    const q = query(collection(db, "conductores"), where("rut", "==", rut));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-        try {
-            await addDoc(collection(db, "conductores"), { 
-                rut, 
-                nombre, 
-                empresa,
-                fechaCreacion: new Date().toISOString() 
-            });
-        } catch (e) { console.error("Error al guardar maestro conductor", e); }
-    }
-}
-
-// --- 7. EXCEL ---
+// --- 7. EXCEL (Solución definitiva para reportes) ---
 export const exportarExcel = async (inicio, fin, tipoF) => {
     try {
         const snap = await getDocs(collection(db, "ingresos"));
         let filtrados = snap.docs.map(d => d.data()).filter(r => {
             if (!r.fecha) return false;
             let fComp = r.fecha;
+            // Si la fecha está en formato chileno (DD-MM-YYYY), la invertimos para comparar con el calendario
             if (r.fecha.includes("-") && r.fecha.split("-")[0].length === 2) {
                 const [d, m, a] = r.fecha.split("-");
                 fComp = `${a}-${m}-${d}`;
@@ -161,12 +143,13 @@ export const exportarExcel = async (inicio, fin, tipoF) => {
         });
 
         if(filtrados.length === 0) return alert(`Sin datos para el rango ${inicio} al ${fin}`);
-        
-        filtrados.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
+
+        // Ordenar por fecha y hora
+        filtrados.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
         const ws = XLSX.utils.json_to_sheet(filtrados);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Registros");
-        XLSX.writeFile(wb, `Reporte_Prosud_${inicio}_${fin}.xlsx`);
-    } catch (e) { alert("Error al generar Excel"); }
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+        XLSX.writeFile(wb, `Reporte_Prosud_${inicio}.xlsx`);
+    } catch (e) { alert("Error al exportar: " + e.message); }
 };
