@@ -52,20 +52,3 @@ input, select { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px sol
     background-color: #8db600 !important; /* El color verde que ves en la foto */
     color: black;
 }
-.btn-salida-rojo {
-    background-color: #d9534f; /* Rojo intenso */
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 14px;
-    width: 100%; /* Ocupa el ancho de la celda */
-    transition: background 0.3s;
-}
-
-.btn-salida-rojo:hover {
-    background-color: #c9302c;
-}
-
