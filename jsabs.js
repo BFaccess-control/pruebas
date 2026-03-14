@@ -10,12 +10,12 @@ export const inicializarAbastecimiento = () => {
 
     form.onsubmit = async (e) => {
         e.preventDefault();
-        
-        // --- PASO 1: CAPTURA DE TIEMPO EXACTO ---
-        const ahora = new Date(); 
         const patCamion = document.getElementById('a-patente').value.toUpperCase();
         const patRampla = document.getElementById('a-rampla').value.toUpperCase();
         
+        // Obtenemos el momento exacto actual
+        const ahora = new Date();
+
         const data = {
             tipo: "ABASTECIMIENTO",
             guardia: document.getElementById('a-guardia-id').value,
@@ -25,123 +25,121 @@ export const inicializarAbastecimiento = () => {
             patente: patCamion,
             rampla: patRampla,
             estado: "En Recinto",
-            // Campos mejorados para Supply
+            // Formatos legibles para la tabla y Excel
             fecha: ahora.toLocaleDateString('es-CL'), 
             hora: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-            timestampIngreso: ahora.getTime() // Milisegundos para cálculo matemático real
+            // Campo técnico para cálculos precisos de permanencia
+            timestampIngreso: ahora.getTime() 
         };
 
-        try {
-            await guardarRegistro(data);
-            await addDoc(collection(db, "registros"), data);
-            await aprenderPatente(patCamion);
-            if(patRampla) await aprenderPatente(patRampla);
-            
-            e.target.reset();
-            alert("✅ Ingreso registrado con éxito");
-        } catch (error) {
-            alert("Error al registrar: " + error.message);
-        }
+        // Guardar en la colección general y aprender la patente
+        await guardarRegistro(data);
+        await aprenderPatente(patCamion);
+        
+        e.target.reset();
+        alert("✅ Ingreso de Abastecimiento registrado.");
     };
 
-    document.getElementById('btn-cancelar-salida').onclick = () => {
-        document.getElementById('modal-confirmar-salida').style.display = 'none';
-    };
+    // Configuración de botones del modal de confirmación
+    const btnConfirmar = document.getElementById('btn-confirmar-salida');
+    const btnCancelar = document.getElementById('btn-cancelar-salida');
 
-    document.getElementById('btn-confirmar-salida-final').onclick = async () => {
-        if (datosPendienteSalida) {
-            await ejecutarSalida(datosPendienteSalida);
-            document.getElementById('modal-confirmar-salida').style.display = 'none';
-        }
-    };
+    if (btnConfirmar) {
+        btnConfirmar.onclick = async () => {
+            if (datosPendienteSalida) {
+                await ejecutarSalida(datosPendienteSalida);
+                cerrarModalSalida();
+            }
+        };
+    }
+
+    if (btnCancelar) {
+        btnCancelar.onclick = cerrarModalSalida;
+    }
 };
 
 export const cargarCamionesEnRecinto = () => {
-    const tablaBody = document.getElementById('tabla-abastecimiento-recinto');
-    if (!tablaBody) return;
+    const tabla = document.getElementById('tabla-camiones-recinto');
+    if(!tabla) return;
 
-    const q = query(collection(db, "registros"), where("tipo", "==", "ABASTECIMIENTO"), where("estado", "==", "En Recinto"));
-
+    const q = query(collection(db, "registros"), where("estado", "==", "En Recinto"), where("tipo", "==", "ABASTECIMIENTO"));
+    
     onSnapshot(q, (snapshot) => {
-        tablaBody.innerHTML = "";
+        tabla.innerHTML = "";
         snapshot.forEach((docSnap) => {
-            const res = docSnap.data();
+            const d = docSnap.data();
+            const id = docSnap.id;
             const fila = document.createElement('tr');
             fila.innerHTML = `
-                <td><strong>${res.nombre}</strong><br><small>${res.rut}</small></td>
-                <td><strong>C:</strong> ${res.patente}<br><strong>R:</strong> ${res.rampla || '---'}</td>
-                <td>${res.fecha}<br>${res.hora}</td>
-                <td>
-                    <button class="btn-salida-rojo" 
-                            data-id="${docSnap.id}" 
-                            data-patente="${res.patente}" 
-                            data-nombre="${res.nombre}"
-                            data-guia="${res.guia || 'N/A'}"
-                            data-hora="${res.hora}"
-                            data-fecha="${res.fecha}"
-                            data-timestamp-ingreso="${res.timestampIngreso}"> 
-                        MARCAR SALIDA
-                    </button>
-                </td>
+                <td>${d.patente}</td>
+                <td>${d.guia}</td>
+                <td>${d.hora}</td>
+                <td><button class="btn-salida" data-id="${id}">Salida</button></td>
             `;
-            tablaBody.appendChild(fila);
+            tabla.appendChild(fila);
         });
 
-        document.querySelectorAll('.btn-salida-rojo').forEach(btn => {
-            btn.onclick = () => mostrarValidacionSalida(btn.dataset);
+        // Asignar eventos a los botones de salida generados
+        document.querySelectorAll('.btn-salida').forEach(btn => {
+            btn.onclick = () => {
+                const docId = btn.getAttribute('data-id');
+                const docData = snapshot.docs.find(doc => doc.id === docId).data();
+                abrirModalSalida({ id: docId, ...docData });
+            };
         });
     });
 };
 
-function mostrarValidacionSalida(datos) {
+function abrirModalSalida(datos) {
     datosPendienteSalida = datos;
-    const infoDiv = document.getElementById('detalle-salida-camion');
-    
-    infoDiv.innerHTML = `
-        <strong>Conductor:</strong> ${datos.nombre}<br>
+    const detalle = document.getElementById('detalle-salida-camion');
+    detalle.innerHTML = `
         <strong>Patente Camión:</strong> ${datos.patente}<br>
         <strong>Número de Guía:</strong> ${datos.guia}<br>
-        <strong>Ingreso:</strong> ${datos.fecha} a las ${datos.hora}
+        <strong>Fecha de Ingreso:</strong> ${datos.fecha}<br>
+        <strong>Hora de Ingreso:</strong> ${datos.hora}
     `;
-    
     document.getElementById('modal-confirmar-salida').style.display = 'flex';
 }
 
+function cerrarModalSalida() {
+    document.getElementById('modal-confirmar-salida').style.display = 'none';
+    datosPendienteSalida = null;
+}
+
 async function ejecutarSalida(datos) {
-    const { id, patente, timestampIngreso } = datos;
-    const ahoraSalida = new Date();
-    const horaS = ahoraSalida.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' });
-    const fechaS = ahoraSalida.toLocaleDateString('es-CL');
+    const { id, timestampIngreso } = datos;
+    const ahora = new Date();
+    const timestampSalida = ahora.getTime();
     
-    // NUEVO CÁLCULO DE PERMANENCIA BASADO EN TIMESTAMP
     let perm = "---";
-    if (timestampIngreso && timestampIngreso !== "undefined") {
-        const msDiferencia = ahoraSalida.getTime() - Number(timestampIngreso);
-        const minutosTotales = Math.floor(msDiferencia / (1000 * 60));
-        const horas = Math.floor(minutosTotales / 60);
-        const minutos = minutosTotales % 60;
-        perm = `${horas}h ${minutos}m`;
+    
+    // Si tenemos el timestamp de ingreso, calculamos la diferencia real
+    if (timestampIngreso) {
+        const diffMs = timestampSalida - timestampIngreso;
+        const totalMinutos = Math.floor(diffMs / (1000 * 60));
+        
+        const dias = Math.floor(totalMinutos / 1440);
+        const horas = Math.floor((totalMinutos % 1440) / 60);
+        const minutos = totalMinutos % 60;
+
+        perm = "";
+        if (dias > 0) perm += `${dias}d `;
+        perm += `${horas}h ${minutos}m`;
     }
 
     try {
-        const dataUpdate = { 
+        await updateDoc(doc(db, "registros", id), { 
             estado: "Finalizado", 
-            fechaSalida: fechaS,
-            horaSalida: horaS, 
+            fechaSalida: ahora.toLocaleDateString('es-CL'),
+            horaSalida: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+            timestampSalida: timestampSalida,
             permanencia: perm 
-        };
-
-        await updateDoc(doc(db, "registros", id), dataUpdate);
-        
-        const qIng = query(collection(db, "ingresos"), where("tipo", "==", "ABASTECIMIENTO"), where("patente", "==", patente), where("estado", "==", "En Recinto"));
-        const snapIng = await getDocs(qIng);
-        snapIng.forEach(async (d) => {
-            await updateDoc(doc(db, "ingresos", d.id), dataUpdate);
         });
-
-        alert(`✅ Salida confirmada. Permanencia total: ${perm}`);
-    } catch (e) { 
-        console.error(e);
-        alert("Error al procesar salida"); 
+        
+        console.log(`Salida procesada para ID: ${id}. Permanencia: ${perm}`);
+    } catch (e) {
+        console.error("Error al registrar salida:", e);
+        alert("Error al registrar la salida. Revisa la consola.");
     }
 }
