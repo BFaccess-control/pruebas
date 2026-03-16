@@ -4,6 +4,7 @@ import { guardarRegistro, aprenderPatente } from './jsmtr.js';
 
 let datosPendienteSalida = null; 
 
+// --- 1. FUNCIÓN DE INICIALIZACIÓN ---
 export const inicializarAbastecimiento = () => {
     const form = document.getElementById('form-abastecimiento');
     if(!form) return;
@@ -33,11 +34,11 @@ export const inicializarAbastecimiento = () => {
             e.target.reset();
             alert("✅ Ingreso de Abastecimiento registrado.");
         } catch (error) {
-            console.error("Error al guardar ingreso:", error);
+            console.error("Error al guardar:", error);
         }
     };
 
-    // Configuración de botones del modal (usando delegación o verificación)
+    // Configuración de botones del modal
     const btnConfirmar = document.getElementById('btn-confirmar-salida');
     if (btnConfirmar) {
         btnConfirmar.onclick = async () => {
@@ -52,12 +53,10 @@ export const inicializarAbastecimiento = () => {
     if (btnCancelar) btnCancelar.onclick = cerrarModalSalida;
 };
 
+// --- 2. CARGA DE TABLA EN TIEMPO REAL ---
 export const cargarCamionesEnRecinto = () => {
     const tabla = document.getElementById('tabla-camiones-recinto');
-    if(!tabla) {
-        console.warn("No se encontró el elemento 'tabla-camiones-recinto'");
-        return;
-    }
+    if(!tabla) return;
 
     const q = query(
         collection(db, "registros"), 
@@ -65,7 +64,6 @@ export const cargarCamionesEnRecinto = () => {
         where("tipo", "==", "ABASTECIMIENTO")
     );
     
-    // El onSnapshot es el que mantiene la tabla viva
     onSnapshot(q, (snapshot) => {
         tabla.innerHTML = "";
         
@@ -83,24 +81,24 @@ export const cargarCamionesEnRecinto = () => {
                 <td>${d.patente || 'S/P'}</td>
                 <td>${d.guia || '---'}</td>
                 <td>${d.hora || '---'}</td>
-                <td><button class="btn-salida-accion" data-id="${id}">Salida</button></td>
+                <td><button class="btn-salida-confirm" data-id="${id}">Salida</button></td>
             `;
             tabla.appendChild(fila);
         });
 
-        // Eventos para los botones recién creados
-        tabla.querySelectorAll('.btn-salida-accion').forEach(btn => {
+        // Eventos para botones de salida
+        tabla.querySelectorAll('.btn-salida-confirm').forEach(btn => {
             btn.onclick = () => {
                 const docId = btn.getAttribute('data-id');
                 const docData = snapshot.docs.find(doc => doc.id === docId).data();
+                // Llamamos a la función local
                 abrirModalSalida({ id: docId, ...docData });
             };
         });
-    }, (error) => {
-        console.error("Error en tiempo real de la tabla:", error);
     });
 };
 
+// --- 3. FUNCIONES AUXILIARES (INTERNAS) ---
 function abrirModalSalida(datos) {
     datosPendienteSalida = datos;
     const detalle = document.getElementById('detalle-salida-camion');
@@ -108,7 +106,7 @@ function abrirModalSalida(datos) {
         detalle.innerHTML = `
             <strong>Patente:</strong> ${datos.patente}<br>
             <strong>Guía:</strong> ${datos.guia}<br>
-            <strong>Ingreso:</strong> ${datos.fecha} ${datos.hora}
+            <strong>Ingreso:</strong> ${datos.fecha || ''} ${datos.hora || ''}
         `;
     }
     const modal = document.getElementById('modal-confirmar-salida');
@@ -146,6 +144,5 @@ async function ejecutarSalida(datos) {
         });
     } catch (e) {
         console.error("Error al procesar salida:", e);
-        alert("Hubo un error al registrar la salida.");
     }
 }
