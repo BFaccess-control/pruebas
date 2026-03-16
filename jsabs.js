@@ -1,5 +1,5 @@
 import { db } from './jslg.js';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { guardarRegistro, aprenderPatente } from './jsmtr.js';
 
 let datosPendienteSalida = null; 
@@ -11,8 +11,6 @@ export const inicializarAbastecimiento = () => {
     form.onsubmit = async (e) => {
         e.preventDefault();
         const patCamion = document.getElementById('a-patente').value.toUpperCase();
-        const patRampla = document.getElementById('a-rampla').value.toUpperCase();
-        
         const ahora = new Date();
 
         const data = {
@@ -22,23 +20,25 @@ export const inicializarAbastecimiento = () => {
             nombre: document.getElementById('a-nombre').value,
             guia: document.getElementById('a-guia').value,
             patente: patCamion,
-            rampla: patRampla,
+            rampla: document.getElementById('a-rampla').value.toUpperCase(),
             estado: "En Recinto",
             fecha: ahora.toLocaleDateString('es-CL'), 
             hora: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
             timestampIngreso: ahora.getTime() 
         };
 
-        await guardarRegistro(data);
-        await aprenderPatente(patCamion);
-        
-        e.target.reset();
-        alert("✅ Ingreso de Abastecimiento registrado.");
+        try {
+            await guardarRegistro(data);
+            await aprenderPatente(patCamion);
+            e.target.reset();
+            alert("✅ Ingreso de Abastecimiento registrado.");
+        } catch (error) {
+            console.error("Error al guardar ingreso:", error);
+        }
     };
 
+    // Configuración de botones del modal (usando delegación o verificación)
     const btnConfirmar = document.getElementById('btn-confirmar-salida');
-    const btnCancelar = document.getElementById('btn-cancelar-salida');
-
     if (btnConfirmar) {
         btnConfirmar.onclick = async () => {
             if (datosPendienteSalida) {
@@ -48,71 +48,76 @@ export const inicializarAbastecimiento = () => {
         };
     }
 
-    if (btnCancelar) {
-        btnCancelar.onclick = cerrarModalSalida;
-    }
+    const btnCancelar = document.getElementById('btn-cancelar-salida');
+    if (btnCancelar) btnCancelar.onclick = cerrarModalSalida;
 };
 
 export const cargarCamionesEnRecinto = () => {
     const tabla = document.getElementById('tabla-camiones-recinto');
-    if(!tabla) return;
+    if(!tabla) {
+        console.warn("No se encontró el elemento 'tabla-camiones-recinto'");
+        return;
+    }
 
-    // Filtro para ver solo los que están dentro
-    const q = query(collection(db, "registros"), where("estado", "==", "En Recinto"), where("tipo", "==", "ABASTECIMIENTO"));
+    const q = query(
+        collection(db, "registros"), 
+        where("estado", "==", "En Recinto"), 
+        where("tipo", "==", "ABASTECIMIENTO")
+    );
     
+    // El onSnapshot es el que mantiene la tabla viva
     onSnapshot(q, (snapshot) => {
         tabla.innerHTML = "";
         
-        // Guardamos los documentos en un array para acceder a ellos luego
-        const docsArray = [];
-        
+        if (snapshot.empty) {
+            tabla.innerHTML = "<tr><td colspan='4' style='text-align:center;'>No hay camiones en recinto</td></tr>";
+            return;
+        }
+
         snapshot.forEach((docSnap) => {
             const d = docSnap.data();
             const id = docSnap.id;
-            docsArray.push({ id, ...d });
-
             const fila = document.createElement('tr');
-            // Usamos d.hora o un fallback si por alguna razón no existe
-            const horaMostrar = d.hora || "---";
             
             fila.innerHTML = `
-                <td>${d.patente}</td>
-                <td>${d.guia}</td>
-                <td>${horaMostrar}</td>
-                <td><button class="btn-salida" data-id="${id}">Salida</button></td>
+                <td>${d.patente || 'S/P'}</td>
+                <td>${d.guia || '---'}</td>
+                <td>${d.hora || '---'}</td>
+                <td><button class="btn-salida-accion" data-id="${id}">Salida</button></td>
             `;
             tabla.appendChild(fila);
         });
 
-        // Eventos para botones de salida
-        document.querySelectorAll('.btn-salida').forEach(btn => {
+        // Eventos para los botones recién creados
+        tabla.querySelectorAll('.btn-salida-accion').forEach(btn => {
             btn.onclick = () => {
                 const docId = btn.getAttribute('data-id');
-                const docData = docsArray.find(item => item.id === docId);
-                if (docData) {
-                    abrirModalSalida(docData);
-                }
+                const docData = snapshot.docs.find(doc => doc.id === docId).data();
+                abrirModalSalida({ id: docId, ...docData });
             };
         });
     }, (error) => {
-        console.error("Error en el snapshot de abastecimiento:", error);
+        console.error("Error en tiempo real de la tabla:", error);
     });
 };
 
 function abrirModalSalida(datos) {
     datosPendienteSalida = datos;
     const detalle = document.getElementById('detalle-salida-camion');
-    detalle.innerHTML = `
-        <strong>Patente Camión:</strong> ${datos.patente}<br>
-        <strong>Número de Guía:</strong> ${datos.guia}<br>
-        <strong>Fecha de Ingreso:</strong> ${datos.fecha || 'No registrada'}<br>
-        <strong>Hora de Ingreso:</strong> ${datos.hora || 'No registrada'}
-    `;
-    document.getElementById('modal-confirmar-salida').style.display = 'flex';
+    if (detalle) {
+        detalle.innerHTML = `
+            <strong>Patente:</strong> ${datos.patente}<br>
+            <strong>Guía:</strong> ${datos.guia}<br>
+            <strong>Ingreso:</strong> ${datos.fecha} ${datos.hora}
+        `;
+    }
+    const modal = document.getElementById('modal-confirmar-salida');
+    if (modal) modal.style.display = 'flex';
 }
 
 function cerrarModalSalida() {
-    document.getElementById('modal-confirmar-salida').style.display = 'none';
+    const modal = document.getElementById('modal-confirmar-salida');
+    if (modal) modal.style.display = 'none';
     datosPendienteSalida = null;
 }
 
@@ -122,15 +127,12 @@ async function ejecutarSalida(datos) {
     const timestampSalida = ahora.getTime();
     
     let perm = "---";
-    
     if (timestampIngreso) {
         const diffMs = timestampSalida - timestampIngreso;
         const totalMinutos = Math.floor(diffMs / (1000 * 60));
-        
         const dias = Math.floor(totalMinutos / 1440);
         const horas = Math.floor((totalMinutos % 1440) / 60);
         const minutos = totalMinutos % 60;
-
         perm = (dias > 0) ? `${dias}d ${horas}h ${minutos}m` : `${horas}h ${minutos}m`;
     }
 
@@ -143,6 +145,7 @@ async function ejecutarSalida(datos) {
             permanencia: perm 
         });
     } catch (e) {
-        console.error("Error al registrar salida:", e);
+        console.error("Error al procesar salida:", e);
+        alert("Hubo un error al registrar la salida.");
     }
 }
