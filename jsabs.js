@@ -13,7 +13,6 @@ export const inicializarAbastecimiento = () => {
         const patCamion = document.getElementById('a-patente').value.toUpperCase();
         const patRampla = document.getElementById('a-rampla').value.toUpperCase();
         
-        // Obtenemos el momento exacto actual
         const ahora = new Date();
 
         const data = {
@@ -25,14 +24,11 @@ export const inicializarAbastecimiento = () => {
             patente: patCamion,
             rampla: patRampla,
             estado: "En Recinto",
-            // Formatos legibles para la tabla y Excel
             fecha: ahora.toLocaleDateString('es-CL'), 
             hora: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-            // Campo técnico para cálculos precisos de permanencia
             timestampIngreso: ahora.getTime() 
         };
 
-        // Guardar en la colección general y aprender la patente
         await guardarRegistro(data);
         await aprenderPatente(patCamion);
         
@@ -40,7 +36,6 @@ export const inicializarAbastecimiento = () => {
         alert("✅ Ingreso de Abastecimiento registrado.");
     };
 
-    // Configuración de botones del modal de confirmación
     const btnConfirmar = document.getElementById('btn-confirmar-salida');
     const btnCancelar = document.getElementById('btn-cancelar-salida');
 
@@ -62,31 +57,45 @@ export const cargarCamionesEnRecinto = () => {
     const tabla = document.getElementById('tabla-camiones-recinto');
     if(!tabla) return;
 
+    // Filtro para ver solo los que están dentro
     const q = query(collection(db, "registros"), where("estado", "==", "En Recinto"), where("tipo", "==", "ABASTECIMIENTO"));
     
     onSnapshot(q, (snapshot) => {
         tabla.innerHTML = "";
+        
+        // Guardamos los documentos en un array para acceder a ellos luego
+        const docsArray = [];
+        
         snapshot.forEach((docSnap) => {
             const d = docSnap.data();
             const id = docSnap.id;
+            docsArray.push({ id, ...d });
+
             const fila = document.createElement('tr');
+            // Usamos d.hora o un fallback si por alguna razón no existe
+            const horaMostrar = d.hora || "---";
+            
             fila.innerHTML = `
                 <td>${d.patente}</td>
                 <td>${d.guia}</td>
-                <td>${d.hora}</td>
+                <td>${horaMostrar}</td>
                 <td><button class="btn-salida" data-id="${id}">Salida</button></td>
             `;
             tabla.appendChild(fila);
         });
 
-        // Asignar eventos a los botones de salida generados
+        // Eventos para botones de salida
         document.querySelectorAll('.btn-salida').forEach(btn => {
             btn.onclick = () => {
                 const docId = btn.getAttribute('data-id');
-                const docData = snapshot.docs.find(doc => doc.id === docId).data();
-                abrirModalSalida({ id: docId, ...docData });
+                const docData = docsArray.find(item => item.id === docId);
+                if (docData) {
+                    abrirModalSalida(docData);
+                }
             };
         });
+    }, (error) => {
+        console.error("Error en el snapshot de abastecimiento:", error);
     });
 };
 
@@ -96,8 +105,8 @@ function abrirModalSalida(datos) {
     detalle.innerHTML = `
         <strong>Patente Camión:</strong> ${datos.patente}<br>
         <strong>Número de Guía:</strong> ${datos.guia}<br>
-        <strong>Fecha de Ingreso:</strong> ${datos.fecha}<br>
-        <strong>Hora de Ingreso:</strong> ${datos.hora}
+        <strong>Fecha de Ingreso:</strong> ${datos.fecha || 'No registrada'}<br>
+        <strong>Hora de Ingreso:</strong> ${datos.hora || 'No registrada'}
     `;
     document.getElementById('modal-confirmar-salida').style.display = 'flex';
 }
@@ -114,7 +123,6 @@ async function ejecutarSalida(datos) {
     
     let perm = "---";
     
-    // Si tenemos el timestamp de ingreso, calculamos la diferencia real
     if (timestampIngreso) {
         const diffMs = timestampSalida - timestampIngreso;
         const totalMinutos = Math.floor(diffMs / (1000 * 60));
@@ -123,9 +131,7 @@ async function ejecutarSalida(datos) {
         const horas = Math.floor((totalMinutos % 1440) / 60);
         const minutos = totalMinutos % 60;
 
-        perm = "";
-        if (dias > 0) perm += `${dias}d `;
-        perm += `${horas}h ${minutos}m`;
+        perm = (dias > 0) ? `${dias}d ${horas}h ${minutos}m` : `${horas}h ${minutos}m`;
     }
 
     try {
@@ -136,10 +142,7 @@ async function ejecutarSalida(datos) {
             timestampSalida: timestampSalida,
             permanencia: perm 
         });
-        
-        console.log(`Salida procesada para ID: ${id}. Permanencia: ${perm}`);
     } catch (e) {
         console.error("Error al registrar salida:", e);
-        alert("Error al registrar la salida. Revisa la consola.");
     }
 }
