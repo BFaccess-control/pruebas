@@ -4,7 +4,7 @@ import { guardarRegistro, aprenderPatente } from './jsmtr.js';
 
 let datosPendienteSalida = null; 
 
-// --- 1. FUNCIONES DEL MODAL (Declaradas primero para que existan siempre) ---
+// --- 1. FUNCIONES DEL MODAL ---
 const cerrarModalSalida = () => {
     const modal = document.getElementById('modal-confirmar-salida');
     if (modal) modal.style.display = 'none';
@@ -25,7 +25,7 @@ const abrirModalSalida = (datos) => {
     if (modal) modal.style.display = 'flex';
 };
 
-// --- 2. LÓGICA DE SALIDA ---
+// --- 2. LÓGICA DE SALIDA (Cálculo corregido días/horas) ---
 async function ejecutarSalida(datos) {
     const { id, timestampIngreso } = datos;
     const ahora = new Date();
@@ -49,19 +49,19 @@ async function ejecutarSalida(datos) {
             timestampSalida: timestampSalida,
             permanencia: perm 
         });
-        console.log("Salida exitosa");
+        cerrarModalSalida();
     } catch (e) {
         console.error("Error al procesar salida:", e);
     }
 }
 
-// --- 3. CARGA DE TABLA (La función que necesitas que funcione) ---
+// --- 3. CARGA DE TABLA (Usando tu ID real: tabla-abastecimiento-recinto) ---
 export const cargarCamionesEnRecinto = () => {
-    console.log("Iniciando carga de tabla de abastecimiento...");
-    const tabla = document.getElementById('tabla-camiones-recinto');
+    const tabla = document.getElementById('tabla-abastecimiento-recinto');
     
     if(!tabla) {
-        console.error("Error: No se encontró el elemento 'tabla-camiones-recinto'");
+        console.warn("Esperando a que la tabla cargue...");
+        setTimeout(cargarCamionesEnRecinto, 500);
         return;
     }
 
@@ -72,7 +72,6 @@ export const cargarCamionesEnRecinto = () => {
     );
     
     onSnapshot(q, (snapshot) => {
-        console.log("Datos recibidos de Firebase. Documentos:", snapshot.size);
         tabla.innerHTML = "";
         
         if (snapshot.empty) {
@@ -94,22 +93,17 @@ export const cargarCamionesEnRecinto = () => {
             tabla.appendChild(fila);
         });
 
-        // Asignar eventos click a los botones generados
         tabla.querySelectorAll('.btn-salida-final').forEach(btn => {
             btn.onclick = () => {
                 const docId = btn.getAttribute('data-id');
-                const docSnap = snapshot.docs.find(doc => doc.id === docId);
-                if (docSnap) {
-                    abrirModalSalida({ id: docId, ...docSnap.data() });
-                }
+                const docData = snapshot.docs.find(doc => doc.id === docId).data();
+                abrirModalSalida({ id: docId, ...docData });
             };
         });
-    }, (error) => {
-        console.error("Error en el snapshot:", error);
     });
 };
 
-// --- 4. INICIALIZACIÓN DE FORMULARIO ---
+// --- 4. INICIALIZACIÓN ---
 export const inicializarAbastecimiento = () => {
     const form = document.getElementById('form-abastecimiento');
     if(!form) return;
@@ -137,20 +131,16 @@ export const inicializarAbastecimiento = () => {
             await guardarRegistro(data);
             await aprenderPatente(patCamion);
             e.target.reset();
-            alert("✅ Ingreso registrado con éxito.");
+            alert("✅ Registro guardado.");
         } catch (error) {
-            console.error("Error al guardar registro:", error);
+            console.error(error);
         }
     };
 
-    // Botones del modal de confirmación
     const btnConfirmar = document.getElementById('btn-confirmar-salida');
     if (btnConfirmar) {
-        btnConfirmar.onclick = async () => {
-            if (datosPendienteSalida) {
-                await ejecutarSalida(datosPendienteSalida);
-                cerrarModalSalida();
-            }
+        btnConfirmar.onclick = () => {
+            if (datosPendienteSalida) ejecutarSalida(datosPendienteSalida);
         };
     }
 
