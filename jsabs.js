@@ -1,109 +1,9 @@
 import { db } from './jslg.js';
-import { collection, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, query, where, getDocs, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { guardarRegistro, aprenderPatente } from './jsmtr.js';
 
-let datosPendienteSalida = null; 
+let datosPendienteSalida = null; // Variable para guardar datos temporalmente
 
-// --- 1. FUNCIONES DEL MODAL ---
-const cerrarModalSalida = () => {
-    const modal = document.getElementById('modal-confirmar-salida');
-    if (modal) modal.style.display = 'none';
-    datosPendienteSalida = null;
-};
-
-const abrirModalSalida = (datos) => {
-    datosPendienteSalida = datos;
-    const detalle = document.getElementById('detalle-salida-camion');
-    if (detalle) {
-        detalle.innerHTML = `
-            <strong>Patente:</strong> ${datos.patente || 'S/P'}<br>
-            <strong>Guía:</strong> ${datos.guia || '---'}<br>
-            <strong>Ingreso:</strong> ${datos.fecha || ''} ${datos.hora || ''}
-        `;
-    }
-    const modal = document.getElementById('modal-confirmar-salida');
-    if (modal) modal.style.display = 'flex';
-};
-
-// --- 2. LÓGICA DE SALIDA (Cálculo corregido días/horas) ---
-async function ejecutarSalida(datos) {
-    const { id, timestampIngreso } = datos;
-    const ahora = new Date();
-    const timestampSalida = ahora.getTime();
-    
-    let perm = "---";
-    if (timestampIngreso) {
-        const diffMs = timestampSalida - timestampIngreso;
-        const totalMinutos = Math.floor(diffMs / (1000 * 60));
-        const dias = Math.floor(totalMinutos / 1440);
-        const horas = Math.floor((totalMinutos % 1440) / 60);
-        const minutos = totalMinutos % 60;
-        perm = (dias > 0) ? `${dias}d ${horas}h ${minutos}m` : `${horas}h ${minutos}m`;
-    }
-
-    try {
-        await updateDoc(doc(db, "registros", id), { 
-            estado: "Finalizado", 
-            fechaSalida: ahora.toLocaleDateString('es-CL'),
-            horaSalida: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-            timestampSalida: timestampSalida,
-            permanencia: perm 
-        });
-        cerrarModalSalida();
-    } catch (e) {
-        console.error("Error al procesar salida:", e);
-    }
-}
-
-// --- 3. CARGA DE TABLA (Usando tu ID real: tabla-abastecimiento-recinto) ---
-export const cargarCamionesEnRecinto = () => {
-    const tabla = document.getElementById('tabla-abastecimiento-recinto');
-    
-    if(!tabla) {
-        console.warn("Esperando a que la tabla cargue...");
-        setTimeout(cargarCamionesEnRecinto, 500);
-        return;
-    }
-
-    const q = query(
-        collection(db, "registros"), 
-        where("estado", "==", "En Recinto"), 
-        where("tipo", "==", "ABASTECIMIENTO")
-    );
-    
-    onSnapshot(q, (snapshot) => {
-        tabla.innerHTML = "";
-        
-        if (snapshot.empty) {
-            tabla.innerHTML = "<tr><td colspan='4' style='text-align:center;'>No hay camiones en recinto</td></tr>";
-            return;
-        }
-
-        snapshot.forEach((docSnap) => {
-            const d = docSnap.data();
-            const id = docSnap.id;
-            const fila = document.createElement('tr');
-            
-            fila.innerHTML = `
-                <td>${d.patente || 'S/P'}</td>
-                <td>${d.guia || '---'}</td>
-                <td>${d.hora || '---'}</td>
-                <td><button class="btn-salida-final" data-id="${id}">Salida</button></td>
-            `;
-            tabla.appendChild(fila);
-        });
-
-        tabla.querySelectorAll('.btn-salida-final').forEach(btn => {
-            btn.onclick = () => {
-                const docId = btn.getAttribute('data-id');
-                const docData = snapshot.docs.find(doc => doc.id === docId).data();
-                abrirModalSalida({ id: docId, ...docData });
-            };
-        });
-    });
-};
-
-// --- 4. INICIALIZACIÓN ---
 export const inicializarAbastecimiento = () => {
     const form = document.getElementById('form-abastecimiento');
     if(!form) return;
@@ -111,8 +11,8 @@ export const inicializarAbastecimiento = () => {
     form.onsubmit = async (e) => {
         e.preventDefault();
         const patCamion = document.getElementById('a-patente').value.toUpperCase();
-        const ahora = new Date();
-
+        const patRampla = document.getElementById('a-rampla').value.toUpperCase();
+        
         const data = {
             tipo: "ABASTECIMIENTO",
             guardia: document.getElementById('a-guardia-id').value,
@@ -120,30 +20,107 @@ export const inicializarAbastecimiento = () => {
             nombre: document.getElementById('a-nombre').value,
             guia: document.getElementById('a-guia').value,
             patente: patCamion,
-            rampla: document.getElementById('a-rampla').value.toUpperCase(),
+            rampla: patRampla,
             estado: "En Recinto",
-            fecha: ahora.toLocaleDateString('es-CL'), 
-            hora: ahora.toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-            timestampIngreso: ahora.getTime() 
+            hora: new Date().toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' })
         };
 
-        try {
-            await guardarRegistro(data);
-            await aprenderPatente(patCamion);
-            e.target.reset();
-            alert("✅ Registro guardado.");
-        } catch (error) {
-            console.error(error);
-        }
+        await guardarRegistro(data);
+        await addDoc(collection(db, "registros"), data);
+        await aprenderPatente(patCamion);
+        if(patRampla) await aprenderPatente(patRampla);
+        
+        e.target.reset();
+        alert("✅ Ingreso registrado");
     };
 
-    const btnConfirmar = document.getElementById('btn-confirmar-salida');
-    if (btnConfirmar) {
-        btnConfirmar.onclick = () => {
-            if (datosPendienteSalida) ejecutarSalida(datosPendienteSalida);
-        };
+    // Configurar botones del modal de validación
+    document.getElementById('btn-cancelar-salida').onclick = () => {
+        document.getElementById('modal-confirmar-salida').style.display = 'none';
+    };
+
+    document.getElementById('btn-confirmar-salida-final').onclick = async () => {
+        if (datosPendienteSalida) {
+            await ejecutarSalida(datosPendienteSalida);
+            document.getElementById('modal-confirmar-salida').style.display = 'none';
+        }
+    };
+};
+
+export const cargarCamionesEnRecinto = () => {
+    const tablaBody = document.getElementById('tabla-abastecimiento-recinto');
+    if (!tablaBody) return;
+
+    const q = query(collection(db, "registros"), where("tipo", "==", "ABASTECIMIENTO"), where("estado", "==", "En Recinto"));
+
+    onSnapshot(q, (snapshot) => {
+        tablaBody.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+            const res = docSnap.data();
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+                <td><strong>${res.nombre}</strong><br><small>${res.rut}</small></td>
+                <td><strong>C:</strong> ${res.patente}<br><strong>R:</strong> ${res.rampla || '---'}</td>
+                <td>${res.hora || '---'}</td>
+                <td>
+                    <button class="btn-salida-rojo" 
+                            data-id="${docSnap.id}" 
+                            data-patente="${res.patente}" 
+                            data-nombre="${res.nombre}"
+                            data-guia="${res.guia || 'N/A'}"
+                            data-hora="${res.hora}">
+                        MARCAR SALIDA
+                    </button>
+                </td>
+            `;
+            tablaBody.appendChild(fila);
+        });
+
+        document.querySelectorAll('.btn-salida-rojo').forEach(btn => {
+            btn.onclick = () => mostrarValidacionSalida(btn.dataset);
+        });
+    });
+};
+
+// --- NUEVA INSTANCIA DE VALIDACIÓN ---
+function mostrarValidacionSalida(datos) {
+    datosPendienteSalida = datos;
+    const infoDiv = document.getElementById('detalle-salida-camion');
+    
+    // Mostramos los datos para que el guardia verifique
+    infoDiv.innerHTML = `
+        <strong>Conductor:</strong> ${datos.nombre}<br>
+        <strong>Patente Camión:</strong> ${datos.patente}<br>
+        <strong>Número de Guía:</strong> ${datos.guia}<br>
+        <strong>Hora de Ingreso:</strong> ${datos.hora}
+    `;
+    
+    document.getElementById('modal-confirmar-salida').style.display = 'flex';
+}
+
+async function ejecutarSalida(datos) {
+    const { id, patente, hora } = datos;
+    const horaS = new Date().toLocaleTimeString('es-CL', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    
+    // Cálculo de permanencia
+    let perm = "---";
+    if (hora && hora.includes(':')) {
+        const [h1, m1] = hora.split(':').map(Number);
+        const [h2, m2] = horaS.split(':').map(Number);
+        const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+        const totalMinutos = diff < 0 ? diff + 1440 : diff;
+        perm = `${Math.floor(totalMinutos/60)}h ${totalMinutos%60}m`;
     }
 
-    const btnCancelar = document.getElementById('btn-cancelar-salida');
-    if (btnCancelar) btnCancelar.onclick = cerrarModalSalida;
-};
+    try {
+        await updateDoc(doc(db, "registros", id), { estado: "Finalizado", horaSalida: horaS, permanencia: perm });
+        
+        const qIng = query(collection(db, "ingresos"), where("tipo", "==", "ABASTECIMIENTO"), where("patente", "==", patente), where("estado", "==", "En Recinto"));
+        const snapIng = await getDocs(qIng);
+        snapIng.forEach(async (d) => {
+            await updateDoc(doc(db, "ingresos", d.id), { estado: "Finalizado", horaSalida: horaS, permanencia: perm });
+        });
+
+        alert("✅ Salida confirmada para: " + patente);
+    } catch (e) { alert("Error al procesar salida"); }
+}
