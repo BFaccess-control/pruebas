@@ -86,18 +86,50 @@ export function activarAutocompletadoPatente(idInput, idBox) {
     };
 }
 
-// --- 4. GESTIÓN DE GUARDIAS ---
+// sección Gestión de Guardias (Actualizada para mostrar lista)
 export const cargarGuardiasYListados = async () => {
     const colRef = collection(db, "lista_guardias");
+    const contenedorAdmin = document.getElementById('lista-guardias-admin'); // El div del modal
+
     const renderizar = (docs) => {
         listaGuardias = docs.map(d => ({id: d.id, ...d.data()}));
+        
+        // 1. Llenar los SELECT de los formularios
         let opciones = '<option value="">-- Seleccione Guardia --</option>';
         listaGuardias.forEach(g => { opciones += `<option value="${g.nombre}">${g.nombre}</option>`; });
         ['t-guardia-id', 'v-guardia-id', 'a-guardia-id'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = opciones;
         });
+
+        // 2. Llenar la LISTA del modal administrativo (LO QUE TE FALTA)
+        if (contenedorAdmin) {
+            contenedorAdmin.innerHTML = ""; // Limpiar antes de llenar
+            listaGuardias.forEach(g => {
+                const item = document.createElement('div');
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.padding = '5px';
+                item.style.borderBottom = '1px solid #eee';
+                
+                item.innerHTML = `
+                    <span>${g.nombre}</span>
+                    <button class="btn-eliminar-guardia" data-id="${g.id}" style="color:red; cursor:pointer; border:none; background:none;">✕</button>
+                `;
+                contenedorAdmin.appendChild(item);
+            });
+
+            // Configurar botones para eliminar (opcional pero recomendado)
+            document.querySelectorAll('.btn-eliminar-guardia').forEach(btn => {
+                btn.onclick = async () => {
+                    if(confirm("¿Eliminar guardia?")) {
+                        await deleteDoc(doc(db, "lista_guardias", btn.dataset.id));
+                    }
+                };
+            });
+        }
     };
+
     const inicialSnap = await getDocs(colRef);
     renderizar(inicialSnap.docs);
     onSnapshot(colRef, (s) => { renderizar(s.docs); });
