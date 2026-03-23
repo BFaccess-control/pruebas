@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Ingreso — ProSud</title>
+
+  <!-- Google Fonts: Rajdhani (display) + Source Sans 3 (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <!-- XLSX para exportación a Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PANTALLA DE LOGIN
+  ══════════════════════════════════════════════════════════ -->
+  <div id="screen-login" class="screen active">
+    <div class="login-bg">
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="logo-mark">CI</div>
+          <div class="login-brand">
+            <span class="brand-main">Control</span>
+            <span class="brand-sub">de Ingreso</span>
+          </div>
+        </div>
+        <p class="login-tagline">Sistema de Gestión y Auditoría</p>
+
+        <div class="form-group">
+          <label for="login-email">Correo Electrónico</label>
+          <input type="email" id="login-email" placeholder="usuario@empresa.cl" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="login-pass">Contraseña</label>
+          <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <div id="login-error" class="alert alert-error hidden"></div>
+
+        <button id="btn-login" class="btn btn-primary btn-full">
+          <span class="btn-text">Ingresar al Sistema</span>
+          <span class="btn-loader hidden">●●●</span>
+        </button>
+
+        <p class="login-footer">ProSud © <span id="login-year"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PANTALLA PRINCIPAL (después de login)
+  ══════════════════════════════════════════════════════════ -->
+  <div id="screen-main" class="screen hidden">
+
+    <!-- ── SIDEBAR ── -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-mark sm">CI</div>
+          <div>
+            <div class="brand-main">Control</div>
+            <div class="brand-sub">de Ingreso</div>
+          </div>
+        </div>
+        <button id="btn-sidebar-toggle" class="sidebar-toggle" title="Colapsar menú">&#9776;</button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Módulos</div>
+
+        <button class="nav-item active" data-module="tte">
+          <span class="nav-icon">🚌</span>
+          <span class="nav-label">Transporte</span>
+        </button>
+        <button class="nav-item" data-module="vst">
+          <span class="nav-icon">👤</span>
+          <span class="nav-label">Visitas</span>
+        </button>
+        <button class="nav-item" data-module="abs">
+          <span class="nav-icon">🚛</span>
+          <span class="nav-label">Abastecimiento</span>
+        </button>
+
+        <div class="nav-section-label">Gestión</div>
+
+        <button class="nav-item" data-module="report">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Reportes</span>
+        </button>
+
+        <!-- Solo visible para admin -->
+        <button class="nav-item admin-only hidden" data-module="admin">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Administración</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <div class="user-name" id="user-name">—</div>
+            <div class="user-role" id="user-role">—</div>
+          </div>
+        </div>
+        <button id="btn-logout" class="btn-logout" title="Cerrar sesión">⏻</button>
+      </div>
+    </aside>
+
+    <!-- ── CONTENIDO PRINCIPAL ── -->
+    <main id="main-content" class="main-content">
+
+      <!-- Header de página -->
+      <header class="page-header">
+        <div class="page-title-wrap">
+          <h1 id="page-title">Transporte de Pasajeros</h1>
+          <div class="clock-wrap">
+            <span class="clock-date" id="clock-date"></span>
+            <span class="clock-time" id="clock-time"></span>
+          </div>
+        </div>
+      </header>
+
+      <!-- ─────────────────────────────────────────────
+           MÓDULO: TRANSPORTE DE PASAJEROS (tte)
+      ───────────────────────────────────────────── -->
+      <section id="module-tte" class="module-section active">
+        <div class="module-grid">
+
+          <!-- Formulario de ingreso -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Registrar Ingreso</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Guardia de turno</label>
+                <select id="tte-guardia" class="form-control"></select>
+              </div>
+              <div class="form-group">
+                <label>RUT Conductor</label>
+                <input type="text" id="tte-rut" class="form-control" placeholder="12345678-9" maxlength="10" />
+                <!-- Autocompletado inteligente -->
+                <ul id="tte-rut-suggestions" class="autocomplete-list hidden"></ul>
+              </div>
+              <div class="form-group">
+                <label>Nombre Completo</label>
+                <input type="text" id="tte-nombre" class="form-control" placeholder="Nombre y apellidos" />
+              </div>
+              <div class="form-group">
+                <label>Empresa</label>
+                <input type="text" id="tte-empresa" class="form-control" placeholder="Razón social" />
+              </div>
+              <div class="form-group">
+                <label>Patente</label>
+                <input type="text" id="tte-patente" class="form-control" placeholder="XXXX00" maxlength="7" />
+              </div>
+              <div id="tte-error" class="alert alert-error hidden"></div>
+              <button id="btn-tte-registrar" class="btn btn-primary btn-full">
+                ✅ Registrar Ingreso
+              </button>
+            </div>
+          </div>
+
+          <!-- Registros activos del día -->
+          <div class="card card-wide">
+            <div class="card-header">
+              <h2 class="card-title">Registros de Hoy</h2>
+              <span class="badge" id="tte-count">0</span>
+            </div>
+            <div class="card-body p0">
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Hora</th>
+                      <th>RUT</th>
+                      <th>Nombre</th>
+                      <th>Empresa</th>
+                      <th>Patente</th>
+                      <th>Guardia</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tte-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────
+           MÓDULO: VISITAS (vst)
+      ───────────────────────────────────────────── -->
+      <section id="module-vst" class="module-section hidden">
+        <div class="module-grid">
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Registrar Visita</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Guardia de turno</label>
+                <select id="vst-guardia" class="form-control"></select>
+              </div>
+              <div class="form-group">
+                <label>RUT Visitante</label>
+                <input type="text" id="vst-rut" class="form-control" placeholder="12345678-9" maxlength="10" />
+                <ul id="vst-rut-suggestions" class="autocomplete-list hidden"></ul>
+              </div>
+              <div class="form-group">
+                <label>Nombre Completo</label>
+                <input type="text" id="vst-nombre" class="form-control" placeholder="Nombre y apellidos" />
+              </div>
+              <div class="form-group">
+                <label>Empresa</label>
+                <input type="text" id="vst-empresa" class="form-control" placeholder="Razón social" />
+              </div>
+              <div class="form-group">
+                <label>A quién visita</label>
+                <input type="text" id="vst-destino" class="form-control" placeholder="Nombre del anfitrión" />
+              </div>
+
+              <!-- Toggle de vehículo -->
+              <div class="form-group toggle-group">
+                <label class="toggle-label">
+                  <input type="checkbox" id="vst-tiene-vehiculo" />
+                  <span class="toggle-switch"></span>
+                  Ingresa con vehículo
+                </label>
+              </div>
+              <div id="vst-vehiculo-fields" class="hidden">
+                <div class="form-group">
+                  <label>Patente</label>
+                  <input type="text" id="vst-patente" class="form-control" placeholder="XXXX00" maxlength="7" />
+                </div>
+              </div>
+
+              <div id="vst-error" class="alert alert-error hidden"></div>
+              <button id="btn-vst-registrar" class="btn btn-primary btn-full">
+                ✅ Registrar Visita
+              </button>
+            </div>
+          </div>
+
+          <div class="card card-wide">
+            <div class="card-header">
+              <h2 class="card-title">Visitas de Hoy</h2>
+              <span class="badge" id="vst-count">0</span>
+            </div>
+            <div class="card-body p0">
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Hora</th>
+                      <th>RUT</th>
+                      <th>Nombre</th>
+                      <th>Empresa</th>
+                      <th>Visita a</th>
+                      <th>Patente</th>
+                      <th>Guardia</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vst-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────
+           MÓDULO: ABASTECIMIENTO (abs)
+      ───────────────────────────────────────────── -->
+      <section id="module-abs" class="module-section hidden">
+        <div class="module-grid">
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Registrar Ingreso</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Guardia de turno</label>
+                <select id="abs-guardia" class="form-control"></select>
+              </div>
+              <div class="form-group">
+                <label>RUT Conductor</label>
+                <input type="text" id="abs-rut" class="form-control" placeholder="12345678-9" maxlength="10" />
+                <ul id="abs-rut-suggestions" class="autocomplete-list hidden"></ul>
+              </div>
+              <div class="form-group">
+                <label>Nombre Conductor</label>
+                <input type="text" id="abs-nombre" class="form-control" placeholder="Nombre y apellidos" />
+              </div>
+              <div class="form-group">
+                <label>Empresa</label>
+                <input type="text" id="abs-empresa" class="form-control" placeholder="Razón social" />
+              </div>
+              <div class="form-group">
+                <label>Patente Camión</label>
+                <input type="text" id="abs-patente" class="form-control" placeholder="XXXX00" maxlength="7" />
+              </div>
+              <div class="form-group">
+                <label>Patente Rampla <span class="label-hint">(opcional)</span></label>
+                <input type="text" id="abs-rampla" class="form-control" placeholder="XXXX00" maxlength="7" />
+              </div>
+              <div id="abs-error" class="alert alert-error hidden"></div>
+              <button id="btn-abs-registrar" class="btn btn-primary btn-full">
+                ✅ Registrar Ingreso
+              </button>
+            </div>
+          </div>
+
+          <!-- Lista de espera (camiones en recinto) -->
+          <div class="card card-wide">
+            <div class="card-header">
+              <h2 class="card-title">🏭 Camiones en Recinto</h2>
+              <span class="badge badge-warn" id="abs-count">0</span>
+            </div>
+            <div class="card-body p0">
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Desde</th>
+                      <th>RUT</th>
+                      <th>Conductor</th>
+                      <th>Empresa</th>
+                      <th>Patente</th>
+                      <th>Rampla</th>
+                      <th>Permanencia</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="abs-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────
+           MÓDULO: REPORTES
+      ───────────────────────────────────────────── -->
+      <section id="module-report" class="module-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Exportar Reporte Excel</h2>
+          </div>
+          <div class="card-body">
+            <div class="report-filters">
+              <div class="form-group">
+                <label>Tipo de Ingreso</label>
+                <select id="rep-tipo" class="form-control">
+                  <option value="all">Todos</option>
+                  <option value="transporte">Transporte</option>
+                  <option value="visita">Visitas</option>
+                  <option value="abastecimiento">Abastecimiento</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Fecha Inicio</label>
+                <input type="date" id="rep-desde" class="form-control" />
+              </div>
+              <div class="form-group">
+                <label>Fecha Fin</label>
+                <input type="date" id="rep-hasta" class="form-control" />
+              </div>
+              <div class="form-group form-group-action">
+                <button id="btn-exportar" class="btn btn-primary">
+                  📥 Exportar Excel
+                </button>
+              </div>
+            </div>
+            <div id="rep-preview" class="card-body p0 mt16">
+              <div class="table-wrapper">
+                <table class="data-table" id="rep-table">
+                  <thead id="rep-thead"></thead>
+                  <tbody id="rep-tbody"></tbody>
+                </table>
+              </div>
+              <p id="rep-empty" class="empty-msg">Seleccione filtros y presione Exportar para previsualizar los datos.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────
+           MÓDULO: ADMINISTRACIÓN (solo admin)
+      ───────────────────────────────────────────── -->
+      <section id="module-admin" class="module-section hidden admin-only">
+        <div class="module-grid">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Gestionar Guardias</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Nombre del Guardia</label>
+                <input type="text" id="admin-guardia-nombre" class="form-control" placeholder="Nombre completo" />
+              </div>
+              <div id="admin-error" class="alert alert-error hidden"></div>
+              <button id="btn-admin-guardia-add" class="btn btn-primary">
+                ➕ Agregar Guardia
+              </button>
+
+              <hr class="divider" />
+
+              <h3 class="section-subtitle">Lista de Guardias</h3>
+              <ul id="admin-guardias-list" class="admin-list"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL DE CONFIRMACIÓN (salida camión)
+  ══════════════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-icon">🚚</span>
+        <h3 class="modal-title">Confirmar Salida</h3>
+      </div>
+      <div class="modal-body" id="modal-body"><!-- contenido dinámico --></div>
+      <div class="modal-footer">
+        <button id="modal-cancel" class="btn btn-secondary">Cancelar</button>
+        <button id="modal-confirm" class="btn btn-danger">Confirmar Salida</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       TOAST / NOTIFICACIONES
+  ══════════════════════════════════════════════════════════ -->
+  <div id="toast-container"></div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SCRIPTS (orden de carga es importante)
+  ══════════════════════════════════════════════════════════ -->
+  <script src="fx.js"></script>
+  <script src="lg.js"></script>
+  <script src="abs.js"></script>
+  <script src="tte.js"></script>
+  <script src="vst.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
