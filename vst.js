@@ -195,12 +195,24 @@ function vstStartListener() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
 
+  // Consulta simple sin índice compuesto; filtro y orden en cliente
   _vstListener = _vstDb.collection('Ingresos')
     .where('tipo', '==', 'visita')
-    .where('ingreso', '>=', hoy)
-    .orderBy('ingreso', 'desc')
     .onSnapshot(snap => {
-      vstRenderTabla(snap.docs);
+      const hoyMs = hoy.getTime();
+      const docs = snap.docs
+        .filter(doc => {
+          const ts = doc.data().ingreso;
+          if (!ts) return false;
+          const d = ts.toDate ? ts.toDate() : new Date(ts);
+          return d.getTime() >= hoyMs;
+        })
+        .sort((a, b) => {
+          const ta = a.data().ingreso && a.data().ingreso.toDate ? a.data().ingreso.toDate() : new Date(0);
+          const tb = b.data().ingreso && b.data().ingreso.toDate ? b.data().ingreso.toDate() : new Date(0);
+          return tb - ta;
+        });
+      vstRenderTabla(docs);
     }, err => {
       console.error('[vst] Error en listener:', err);
     });
