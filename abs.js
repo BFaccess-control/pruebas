@@ -22,6 +22,7 @@ let _absDb          = null;   // Instancia Firestore
 let _absRol         = null;   // Rol del usuario actual
 let _absListener    = null;   // Unsubscribe del listener en tiempo real
 let _absPermTimer   = null;   // Timer para actualizar permanencias
+let _absDocsCache   = {};     // Cache de datos para evitar JSON inline en onclick
 
 /**
  * Inicializa el módulo de Abastecimiento.
@@ -205,6 +206,8 @@ async function absCheckPatenteDuplicada(patente) {
  * @param {object} data    - Datos del documento
  */
 function absConfirmarSalida(docId, data) {
+  // Si no se pasa data, leerla desde el cache
+  if (!data) data = _absDocsCache[docId] || {};
   const ingresoStr = data.ingreso
     ? `${FX.formatDate(data.ingreso)} ${FX.formatTime(data.ingreso)}`
     : '—';
@@ -311,6 +314,9 @@ function absRenderTabla(docs) {
     const d   = doc.data();
     const perm = FX.calcPermanencia(d.ingreso);
 
+    // Guardar datos en cache para acceso seguro desde onclick
+    _absDocsCache[doc.id] = d;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num-cell">${idx + 1}</td>
@@ -322,7 +328,7 @@ function absRenderTabla(docs) {
       <td>${d.rampla || '—'}</td>
       <td class="perm-cell" data-docid="${doc.id}">${perm}</td>
       <td>
-        <button class="btn-salida" onclick="absConfirmarSalida('${doc.id}', ${JSON.stringify(d).replace(/'/g, "&#39;")})">
+        <button class="btn-salida" onclick="absConfirmarSalida('${doc.id}')">
           🚪 Salida
         </button>
       </td>
