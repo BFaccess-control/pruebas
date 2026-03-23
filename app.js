@@ -339,22 +339,32 @@ async function appExportarExcel() {
   FX.toast('Generando reporte...', 'info', 2000);
 
   try {
-    // ── Consulta base ──
-    let query = APP.db.collection('Ingresos')
-      .where('ingreso', '>=', dDesde)
-      .where('ingreso', '<=', dHasta)
-      .orderBy('ingreso', 'asc');
+    // ── Consulta sin índice compuesto; filtro de fechas en cliente ──
+    // Se filtra por tipo en Firestore si aplica, el rango de fechas en JS.
+    let baseQuery = tipo !== 'all'
+      ? APP.db.collection('Ingresos').where('tipo', '==', tipo)
+      : APP.db.collection('Ingresos');
 
-    // ── Filtro por tipo ──
-    if (tipo !== 'all') {
-      query = APP.db.collection('Ingresos')
-        .where('tipo', '==', tipo)
-        .where('ingreso', '>=', dDesde)
-        .where('ingreso', '<=', dHasta)
-        .orderBy('ingreso', 'asc');
-    }
+    const snap = await baseQuery.get();
 
-    const snap = await query.get();
+    // Filtrar por rango de fechas y ordenar cronológicamente en cliente
+    const filteredDocs = snap.docs
+      .filter(doc => {
+        const ts = doc.data().ingreso;
+        if (!ts) return false;
+        const d = ts.toDate ? ts.toDate() : new Date(ts);
+        return d >= dDesde && d <= dHasta;
+      })
+      .sort((a, b) => {
+        const ta = a.data().ingreso && a.data().ingreso.toDate ? a.data().ingreso.toDate() : new Date(0);
+        const tb = b.data().ingreso && b.data().ingreso.toDate ? b.data().ingreso.toDate() : new Date(0);
+        return ta - tb;
+      });
+
+    // Crear objeto snap-like para compatibilidad con el resto del código
+    const snapCompat = { docs: filteredDocs, size: filteredDocs.length, empty: filteredDocs.length === 0 };
+    Object.assign(snap, snapCompat);
+    snap.forEach = (cb) => filteredDocs.forEach(cb);
 
     if (snap.empty) {
       FX.toast('No hay registros para los filtros seleccionados.', 'info');
