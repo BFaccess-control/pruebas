@@ -160,7 +160,7 @@ async function absRegistrarIngreso() {
 
     // ── 6. Actualizar / crear registro en Vehículos ──
     if (patente) {
-      await _absDb.collection('Vehículos').doc(patente).set(
+      await _absDb.collection('Vehiculos').doc(patente).set(
         { patente, rampla: rampla || null, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
         { merge: true }
       );
