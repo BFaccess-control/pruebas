@@ -271,12 +271,19 @@ function absStartListener() {
   // Cancelar listener previo si existe
   if (_absListener) _absListener();
 
+  // Consulta simple sin índice compuesto; filtro y orden en cliente
   _absListener = _absDb.collection('Ingresos')
     .where('tipo', '==', 'abastecimiento')
     .where('activo', '==', true)
-    .orderBy('ingreso', 'asc')
     .onSnapshot(snap => {
-      absRenderTabla(snap.docs);
+      const docs = snap.docs
+        .filter(doc => doc.data().ingreso)
+        .sort((a, b) => {
+          const ta = a.data().ingreso && a.data().ingreso.toDate ? a.data().ingreso.toDate() : new Date(0);
+          const tb = b.data().ingreso && b.data().ingreso.toDate ? b.data().ingreso.toDate() : new Date(0);
+          return ta - tb; // asc: más antiguo primero (lista de espera)
+        });
+      absRenderTabla(docs);
     }, err => {
       console.error('[abs] Error en listener:', err);
     });
