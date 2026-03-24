@@ -345,10 +345,10 @@ async function appExportarExcel() {
       ? APP.db.collection('Ingresos').where('tipo', '==', tipo)
       : APP.db.collection('Ingresos');
 
-    const snap = await baseQuery.get();
+    const snapRaw = await baseQuery.get();
 
     // Filtrar por rango de fechas y ordenar cronológicamente en cliente
-    const filteredDocs = snap.docs
+    const filteredDocs = snapRaw.docs
       .filter(doc => {
         const ts = doc.data().ingreso;
         if (!ts) return false;
@@ -361,30 +361,18 @@ async function appExportarExcel() {
         return ta - tb;
       });
 
-    // Crear objeto snap-like para compatibilidad con el resto del código
-    const snapCompat = { docs: filteredDocs, size: filteredDocs.length, empty: filteredDocs.length === 0 };
-    Object.assign(snap, snapCompat);
-    snap.forEach = (cb) => filteredDocs.forEach(cb);
-
-    if (snap.empty) {
+    if (filteredDocs.length === 0) {
       FX.toast('No hay registros para los filtros seleccionados.', 'info');
-      // Limpiar tabla de preview
       document.getElementById('rep-thead').innerHTML = '';
       document.getElementById('rep-tbody').innerHTML = '';
       document.getElementById('rep-empty').textContent = 'No se encontraron registros.';
+      document.getElementById('rep-empty').style.display = '';
       return;
     }
 
-    // ── Transformar documentos según tipo ──
-    const rows = [];
-    snap.forEach(doc => {
-      const d = doc.data();
-      rows.push(appBuildExcelRow(d));
-    });
-
     // ── Agrupar por tipo para hojas separadas ──
     const porTipo = {};
-    snap.forEach(doc => {
+    filteredDocs.forEach(doc => {
       const d = doc.data();
       if (!porTipo[d.tipo]) porTipo[d.tipo] = [];
       porTipo[d.tipo].push(d);
@@ -393,13 +381,13 @@ async function appExportarExcel() {
     // ── Crear workbook XLSX ──
     const wb = XLSX.utils.book_new();
 
-    Object.entries(porTipo).forEach(([tipoHoja, docs]) => {
+    Object.entries(porTipo).forEach(([tipoHoja, docsHoja]) => {
       const headers = appGetHeaders(tipoHoja);
-      const data    = docs.map(d => appBuildRow(tipoHoja, d));
+      const data    = docsHoja.map(d => appBuildRow(tipoHoja, d));
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
 
-      // Estilo de ancho de columnas automático
+      // Ancho de columnas automático
       ws['!cols'] = headers.map(() => ({ wch: 18 }));
 
       XLSX.utils.book_append_sheet(wb, ws, appTipoLabel(tipoHoja));
@@ -410,9 +398,9 @@ async function appExportarExcel() {
     XLSX.writeFile(wb, fname);
 
     // ── Previsualizar en tabla HTML ──
-    appPreviewReport(snap.docs);
+    appPreviewReport(filteredDocs);
 
-    FX.toast(`Reporte exportado: ${snap.size} registros`, 'success');
+    FX.toast(`Reporte exportado: ${filteredDocs.length} registros`, 'success');
 
   } catch (err) {
     console.error('[app] Error al exportar:', err);
