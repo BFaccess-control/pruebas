@@ -111,7 +111,7 @@ async function absRegistrarIngreso() {
 
   // ── 1. Validar campos obligatorios ──
   const { valid } = FX.validateFields([
-    'abs-guardia', 'abs-rut', 'abs-nombre', 'abs-empresa', 'abs-patente'
+    'abs-guardia', 'abs-rut', 'abs-nombre', 'abs-empresa', 'abs-patente', 'abs-guia'
   ]);
   if (!valid) {
     errorDiv.textContent = '⚠️ Complete todos los campos obligatorios.';
@@ -125,6 +125,7 @@ async function absRegistrarIngreso() {
   const empresa = document.getElementById('abs-empresa').value.trim();
   const patente = FX.formatPatente(document.getElementById('abs-patente').value.trim());
   const rampla  = FX.formatPatente(document.getElementById('abs-rampla').value.trim());
+  const guia    = document.getElementById('abs-guia').value.trim().toUpperCase();
 
   // ── 2. Validar que la patente NO esté en el recinto ──
   const duplicado = await absCheckPatenteDuplicada(patente);
@@ -143,6 +144,7 @@ async function absRegistrarIngreso() {
     empresa,
     patente,
     rampla:    rampla || null,
+    guia:      guia || null,
     ingreso:   firebase.firestore.FieldValue.serverTimestamp(),
     salida:    null,       // se completará en el registro de salida
     permanencia: null,     // se calculará al registrar salida
@@ -306,7 +308,7 @@ function absRenderTabla(docs) {
   tbody.innerHTML = '';
 
   if (docs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty-msg">No hay camiones en el recinto.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-msg">No hay camiones en el recinto.</td></tr>`;
     return;
   }
 
@@ -326,6 +328,7 @@ function absRenderTabla(docs) {
       <td>${d.empresa || '—'}</td>
       <td><strong>${d.patente || '—'}</strong></td>
       <td>${d.rampla || '—'}</td>
+      <td><strong>${d.guia || '—'}</strong></td>
       <td class="perm-cell" data-docid="${doc.id}">${perm}</td>
       <td>
         <button class="btn-salida" onclick="absConfirmarSalida('${doc.id}')">
@@ -359,7 +362,7 @@ function absRefreshPermanencias() {
  * Limpia todos los campos del formulario de abastecimiento.
  */
 function absClearForm() {
-  ['abs-rut', 'abs-nombre', 'abs-empresa', 'abs-patente', 'abs-rampla'].forEach(id => {
+  ['abs-rut', 'abs-nombre', 'abs-empresa', 'abs-patente', 'abs-rampla', 'abs-guia'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
