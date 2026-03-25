@@ -421,7 +421,7 @@ function appGetHeaders(tipo) {
     case 'visita':
       return [...base, 'Visita a', 'Con Vehículo'];
     case 'abastecimiento':
-      return [...base, 'Rampla', 'Hora Salida', 'Permanencia'];
+      return [...base, 'Rampla', 'N° Guía', 'Hora Salida', 'Permanencia'];
     default:
       return [...base, 'Tipo'];
   }
@@ -446,6 +446,7 @@ function appBuildRow(tipo, d) {
       return [
         fecha, hora, d.guardia || '', d.rut || '', d.nombre || '', d.empresa || '', d.patente || '',
         d.rampla || '—',
+        d.guia || '—',
         d.salida ? FX.formatTime(d.salida) : 'En recinto',
         d.permanencia || (d.activo ? FX.calcPermanencia(d.ingreso) : '—'),
       ];
